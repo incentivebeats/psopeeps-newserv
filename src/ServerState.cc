@@ -2279,17 +2279,7 @@ void ServerState::create_default_lobbies() {
     l->allow_version(Version::GC_EP3_NTE);
     l->allow_version(Version::GC_EP3);
 
-    // PSO Peeps: swap client-facing lobby layouts for Lobby 1 and Lobby 11.
-    // Logical lobby IDs/search order stay unchanged:
-    //   Lobby ID 1  reports block/layout 11
-    //   Lobby ID 11 reports block/layout 1
-    if (x == 0) {
-      l->block = 11;
-    } else if (x == 10) {
-      l->block = 1;
-    } else {
-      l->block = x + 1;
-    }
+    l->block = x + 1;
     l->name = lobby_name;
     l->max_clients = 12;
     if (!allow_non_ep3) {
