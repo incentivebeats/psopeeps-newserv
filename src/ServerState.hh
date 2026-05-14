@@ -11,11 +11,12 @@
 
 #include "Account.hh"
 #include "Client.hh"
+#include "ClientFunctionIndex.hh"
 #include "CommonItemSet.hh"
 #include "DNSServer.hh"
+#include "DOLFileIndex.hh"
 #include "Episode3/DataIndexes.hh"
 #include "Episode3/Tournament.hh"
-#include "FunctionCompiler.hh"
 #include "GSLArchive.hh"
 #include "IPV4RangeSet.hh"
 #include "ItemNameIndex.hh"
@@ -191,7 +192,7 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   std::vector<std::shared_ptr<const PSOBBEncryption::KeyFile>> bb_private_keys;
   std::shared_ptr<const parray<uint8_t, 0x16C>> bb_default_keyboard_config;
   std::shared_ptr<const parray<uint8_t, 0x38>> bb_default_joystick_config;
-  std::shared_ptr<const FunctionCodeIndex> function_code_index;
+  std::shared_ptr<const ClientFunctionIndex> client_functions;
   std::shared_ptr<const PatchFileIndex> pc_patch_file_index;
   std::shared_ptr<const PatchFileIndex> bb_patch_file_index;
   std::unordered_map<uint64_t, std::shared_ptr<const MapFile>> map_file_for_source_hash;
@@ -212,7 +213,7 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   std::shared_ptr<const G_SetEXResultValues_Ep3_6xB4x4B> ep3_tournament_final_round_ex_values;
   std::shared_ptr<const QuestCategoryIndex> quest_category_index;
   std::shared_ptr<const QuestIndex> quest_index;
-  std::shared_ptr<const LevelTableV2> level_table_v1_v2;
+  std::shared_ptr<const LevelTable> level_table_v1_v2;
   std::shared_ptr<const LevelTable> level_table_v3;
   std::shared_ptr<const LevelTable> level_table_v4;
   std::shared_ptr<const BattleParamsIndex> battle_params;
@@ -464,6 +465,8 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   void generate_bb_stream_file();
 
   void load_all(bool enable_thread_pool);
+
+  void reset_between_replays();
 
   void disconnect_all_banned_clients();
 };

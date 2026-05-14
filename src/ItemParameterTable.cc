@@ -1134,7 +1134,7 @@ public:
     return std::make_pair(event_table.data(), event_table.size());
   }
 
-  virtual const std::unordered_set<uint32_t>& all_unsealable_items() const {
+  virtual const std::set<uint32_t>& all_unsealable_items() const {
     return this->unsealable_items;
   }
 
@@ -1178,7 +1178,7 @@ protected:
   std::vector<SoundRemaps> sound_remaps;
   std::vector<TechBoost> tech_boosts;
   std::vector<std::vector<EventItem>> unwrap_table;
-  std::unordered_set<uint32_t> unsealable_items;
+  std::set<uint32_t> unsealable_items;
   std::vector<RangedSpecial> ranged_specials;
 };
 
@@ -2465,7 +2465,7 @@ public:
   }
 
   virtual size_t num_weapon_classes() const {
-    return this->get_data_array_count<ArrayRefT<BE>>(this->root->weapon_table);
+    return get_rel_array_count<ArrayRefT<BE>>(this->all_start_offsets(), this->root->weapon_table);
   }
 
   virtual size_t num_weapons_in_class(uint8_t data1_1) const {
@@ -2512,7 +2512,7 @@ public:
   }
 
   virtual size_t num_tool_classes() const {
-    return this->get_data_array_count<ArrayRefT<BE>>(this->root->tool_table);
+    return get_rel_array_count<ArrayRefT<BE>>(this->all_start_offsets(), this->root->tool_table);
   }
 
   virtual size_t num_tools_in_class(uint8_t data1_1) const {
@@ -2559,7 +2559,7 @@ public:
   }
 
   virtual size_t num_weapon_kinds() const {
-    return this->get_data_array_count<uint8_t>(this->root->weapon_kind_table);
+    return get_rel_array_count<uint8_t>(this->all_start_offsets(), this->root->weapon_kind_table);
   }
 
   virtual uint8_t get_weapon_kind(uint8_t data1_1) const {
@@ -2567,7 +2567,7 @@ public:
   }
 
   virtual size_t num_photon_colors() const {
-    return this->get_data_array_count<PhotonColorEntryT<BE>>(this->root->photon_color_table);
+    return get_rel_array_count<PhotonColorEntryT<BE>>(this->all_start_offsets(), this->root->photon_color_table);
   }
 
   virtual const PhotonColorEntry& get_photon_color(size_t index) const {
@@ -2575,7 +2575,7 @@ public:
   }
 
   virtual size_t num_weapon_ranges() const {
-    return this->get_data_array_count<WeaponRangeT<BE>>(this->root->weapon_range_table);
+    return get_rel_array_count<WeaponRangeT<BE>>(this->all_start_offsets(), this->root->weapon_range_table);
   }
 
   virtual const WeaponRange& get_weapon_range(size_t index) const {
@@ -2584,9 +2584,9 @@ public:
 
   virtual size_t num_weapon_sale_divisors() const {
     if constexpr (requires { this->root->weapon_integral_sale_divisor_table; }) {
-      return this->get_data_array_count<uint8_t>(this->root->weapon_integral_sale_divisor_table);
+      return get_rel_array_count<uint8_t>(this->all_start_offsets(), this->root->weapon_integral_sale_divisor_table);
     } else {
-      return this->get_data_array_count<F32T<BE>>(this->root->weapon_sale_divisor_table);
+      return get_rel_array_count<F32T<BE>>(this->all_start_offsets(), this->root->weapon_sale_divisor_table);
     }
   }
 
@@ -2647,7 +2647,7 @@ public:
 
   virtual std::pair<uint32_t, uint32_t> get_star_value_index_range() const {
     return std::make_pair(
-        ItemStarsFirstID, this->get_data_array_count<uint8_t>(this->root->star_value_table) + ItemStarsFirstID);
+        ItemStarsFirstID, get_rel_array_count<uint8_t>(this->all_start_offsets(), this->root->star_value_table) + ItemStarsFirstID);
   }
 
   virtual uint32_t get_special_stars_base_index() const {
@@ -2667,14 +2667,15 @@ public:
 
   virtual std::string get_unknown_a1() const {
     if constexpr (requires { this->root->unknown_a1; }) {
-      return this->r.pread(this->root->unknown_a1, this->get_data_range_size(this->root->unknown_a1));
+      return this->r.pread(
+          this->root->unknown_a1, get_rel_array_count<uint8_t>(this->all_start_offsets(), this->root->unknown_a1));
     } else {
       return "";
     }
   }
 
   virtual size_t num_specials() const {
-    return this->get_data_array_count<SpecialT<BE>>(this->root->special_table);
+    return get_rel_array_count<SpecialT<BE>>(this->all_start_offsets(), this->root->special_table);
   }
 
   virtual const Special& get_special(uint8_t special) const {
@@ -2690,7 +2691,7 @@ public:
   }
 
   virtual size_t num_weapon_effects() const {
-    return this->get_data_array_count<WeaponEffectT<BE>>(this->root->weapon_effect_table);
+    return get_rel_array_count<WeaponEffectT<BE>>(this->all_start_offsets(), this->root->weapon_effect_table);
   }
 
   virtual const WeaponEffect& get_weapon_effect(size_t index) const {
@@ -2699,7 +2700,7 @@ public:
 
   virtual size_t num_weapon_stat_boost_indexes() const {
     if constexpr (requires { this->root->weapon_stat_boost_index_table; }) {
-      return this->get_data_range_size(this->root->weapon_stat_boost_index_table);
+      return get_rel_array_count<uint8_t>(this->all_start_offsets(), this->root->weapon_stat_boost_index_table);
     } else {
       return 0;
     }
@@ -2715,7 +2716,7 @@ public:
 
   virtual size_t num_armor_stat_boost_indexes() const {
     if constexpr (requires { this->root->armor_stat_boost_index_table; }) {
-      return this->get_data_range_size(this->root->armor_stat_boost_index_table);
+      return get_rel_array_count<uint8_t>(this->all_start_offsets(), this->root->armor_stat_boost_index_table);
     } else {
       return 0;
     }
@@ -2731,7 +2732,7 @@ public:
 
   virtual size_t num_shield_stat_boost_indexes() const {
     if constexpr (requires { this->root->shield_stat_boost_index_table; }) {
-      return this->get_data_range_size(this->root->shield_stat_boost_index_table);
+      return get_rel_array_count<uint8_t>(this->all_start_offsets(), this->root->shield_stat_boost_index_table);
     } else {
       return 0;
     }
@@ -2746,7 +2747,7 @@ public:
   }
 
   virtual size_t num_stat_boosts() const {
-    return this->get_data_array_count<StatBoostT<BE>>(this->root->stat_boost_table);
+    return get_rel_array_count<StatBoostT<BE>>(this->all_start_offsets(), this->root->stat_boost_table);
   }
 
   virtual const StatBoost& get_stat_boost(size_t index) const {
@@ -2755,7 +2756,7 @@ public:
 
   virtual size_t num_shield_effects() const {
     if constexpr (requires { this->root->shield_effect_table; }) {
-      return this->get_data_array_count<ShieldEffectT<BE>>(this->root->shield_effect_table);
+      return get_rel_array_count<ShieldEffectT<BE>>(this->all_start_offsets(), this->root->shield_effect_table);
     } else {
       return 0;
     }
@@ -2826,13 +2827,16 @@ public:
           }
         }
       }
+      return *this->sound_remaps;
+    } else {
+      static const std::vector<SoundRemaps> empty_vec{};
+      return empty_vec;
     }
-    return *this->sound_remaps;
   }
 
   virtual size_t num_tech_boosts() const {
     if constexpr (requires { this->root->tech_boost_table; }) {
-      return this->get_data_array_count<TechBoostT<BE>>(this->root->tech_boost_table);
+      return get_rel_array_count<TechBoostT<BE>>(this->all_start_offsets(), this->root->tech_boost_table);
     } else {
       return 0;
     }
@@ -2868,7 +2872,7 @@ public:
     }
   }
 
-  virtual const std::unordered_set<uint32_t>& all_unsealable_items() const {
+  virtual const std::set<uint32_t>& all_unsealable_items() const {
     if constexpr (requires { this->root->unsealable_table; }) {
       if (!this->unsealable_table.has_value()) {
         auto& ret = this->unsealable_table.emplace();
@@ -2880,7 +2884,7 @@ public:
       }
       return *this->unsealable_table;
     } else {
-      static const std::unordered_set<uint32_t> empty_set{};
+      static const std::set<uint32_t> empty_set{};
       return empty_set;
     }
   }
@@ -2902,262 +2906,211 @@ public:
   }
 
   const std::set<uint32_t>& all_start_offsets() const {
-    if (!this->start_offsets.has_value()) {
-      auto& ret = this->start_offsets.emplace();
-      ret.emplace(r.size() - 0x20); // REL footer
-      ret.emplace(BE ? r.pget_u32b(r.size() - 0x10) : r.pget_u32l(r.size() - 0x10)); // root
-      ret.emplace(BE ? r.pget_u32b(r.size() - 0x20) : r.pget_u32l(r.size() - 0x20)); // relocations
-
-      const auto& footer = r.pget<RELFileFooterT<BE>>(r.size() - sizeof(RELFileFooterT<BE>));
-      auto sub_r = r.sub(footer.relocations_offset, footer.num_relocations * sizeof(U16T<BE>));
-      uint32_t offset = 0;
-      while (!sub_r.eof()) {
-        offset += sub_r.template get<U16T<BE>>() * 4;
-        ret.emplace(r.pget<U32T<BE>>(offset));
-      }
+    if (this->start_offsets.empty()) {
+      this->start_offsets = all_relocation_offsets_for_rel_file<BE>(r.pgetv(0, r.size()), r.size());
     }
-    return *this->start_offsets;
-  }
-
-  size_t get_data_range_size(size_t start_offset) const {
-    const auto& offsets = this->all_start_offsets();
-    auto it = offsets.lower_bound(start_offset);
-    if (it == offsets.end()) {
-      throw std::out_of_range("start offset out of range");
-    }
-    if (*it == start_offset) {
-      it++;
-    }
-    if (it == offsets.end()) {
-      throw std::out_of_range("no further offset beyond start offset");
-    }
-    return *it - start_offset;
-  }
-
-  template <typename T>
-  size_t get_data_array_count(size_t start_offset) const {
-    return this->get_data_range_size(start_offset) / sizeof(T);
+    return this->start_offsets;
   }
 
   static std::string serialize(const ItemParameterTable& pmt) {
-    set<uint32_t> relocations;
+    RELFileWriter<BE> rel;
     RootT root;
-    phosg::StringWriter w;
 
     if constexpr (!std::is_same_v<HeaderT, EmptyHeader>) {
-      w.put<HeaderT>(HeaderT());
+      rel.template put<HeaderT>(HeaderT());
     }
-
-    auto align = [&w](size_t alignment) -> void {
-      while (w.size() & (alignment - 1)) {
-        w.put_u8(0);
-      }
-    };
-    auto write_ref = [&w, &relocations](const ArrayRefT<BE>& ref) -> void {
-      w.put<ArrayRefT<BE>>(ref);
-      relocations.emplace(w.size() - 4);
-    };
 
     if constexpr (requires { root.entry_count; }) {
       root.entry_count = 0x13;
     }
 
-    align(4);
-    ArrayRefT<BE> shields_ref{pmt.num_armors_or_shields_in_class(2) - HasImplicitPlaceholders, w.size()};
+    rel.align(4);
+    ArrayRefT<BE> shields_ref{pmt.num_armors_or_shields_in_class(2) - HasImplicitPlaceholders, rel.w.size()};
     for (size_t data1_2 = 0; data1_2 < (shields_ref.count + HasImplicitPlaceholders); data1_2++) {
-      w.put<ArmorOrShieldT>(pmt.get_armor_or_shield(2, data1_2));
+      rel.template put<ArmorOrShieldT>(pmt.get_armor_or_shield(2, data1_2));
     }
     if constexpr (requires { root.shield_stat_boost_index_table; }) {
-      root.shield_stat_boost_index_table = w.size();
-      w.write(pmt.get_shield_stat_boost_index_table());
+      root.shield_stat_boost_index_table = rel.write(pmt.get_shield_stat_boost_index_table());
     }
 
-    align(4);
-    ArrayRefT<BE> armors_ref{pmt.num_armors_or_shields_in_class(1) - HasImplicitPlaceholders, w.size()};
+    rel.align(4);
+    ArrayRefT<BE> armors_ref{pmt.num_armors_or_shields_in_class(1) - HasImplicitPlaceholders, rel.w.size()};
     for (size_t data1_2 = 0; data1_2 < (armors_ref.count + HasImplicitPlaceholders); data1_2++) {
-      w.put<ArmorOrShieldT>(pmt.get_armor_or_shield(1, data1_2));
+      rel.template put<ArmorOrShieldT>(pmt.get_armor_or_shield(1, data1_2));
     }
     if constexpr (requires { root.armor_stat_boost_index_table; }) {
-      root.armor_stat_boost_index_table = w.size();
-      w.write(pmt.get_armor_stat_boost_index_table());
+      root.armor_stat_boost_index_table = rel.write(pmt.get_armor_stat_boost_index_table());
     }
 
-    align(4);
-    ArrayRefT<BE> units_ref{pmt.num_units() - HasImplicitPlaceholders, w.size()};
+    rel.align(4);
+    ArrayRefT<BE> units_ref{pmt.num_units() - HasImplicitPlaceholders, rel.w.size()};
     for (size_t data1_2 = 0; data1_2 < (units_ref.count + HasImplicitPlaceholders); data1_2++) {
-      w.put<UnitT>(pmt.get_unit(data1_2));
+      rel.template put<UnitT>(pmt.get_unit(data1_2));
     }
 
-    align(4);
-    ArrayRefT<BE> mags_ref{pmt.num_mags() - HasImplicitPlaceholders, w.size()};
+    rel.align(4);
+    ArrayRefT<BE> mags_ref{pmt.num_mags() - HasImplicitPlaceholders, rel.w.size()};
     for (size_t data1_2 = 0; data1_2 < (mags_ref.count + HasImplicitPlaceholders); data1_2++) {
-      w.put<MagT>(pmt.get_mag(data1_2));
+      rel.template put<MagT>(pmt.get_mag(data1_2));
     }
 
-    align(4);
+    rel.align(4);
     std::vector<ArrayRefT<BE>> tool_refs;
     for (size_t data1_1 = 0; data1_1 < pmt.num_tool_classes(); data1_1++) {
-      auto& ref = tool_refs.emplace_back(ArrayRefT<BE>{pmt.num_tools_in_class(data1_1), w.size()});
+      auto& ref = tool_refs.emplace_back(ArrayRefT<BE>{pmt.num_tools_in_class(data1_1), rel.w.size()});
       for (size_t data1_2 = 0; data1_2 < ref.count; data1_2++) {
-        w.put<ToolT>(pmt.get_tool(data1_1, data1_2));
+        rel.template put<ToolT>(pmt.get_tool(data1_1, data1_2));
       }
     }
 
-    align(4);
+    rel.align(4);
     std::vector<ArrayRefT<BE>> weapon_refs;
     for (size_t data1_1 = 0; data1_1 < pmt.num_weapon_classes(); data1_1++) {
-      auto& ref = weapon_refs.emplace_back(ArrayRefT<BE>{pmt.num_weapons_in_class(data1_1), w.size()});
+      auto& ref = weapon_refs.emplace_back(ArrayRefT<BE>{pmt.num_weapons_in_class(data1_1), rel.w.size()});
       for (size_t data1_2 = 0; data1_2 < ref.count; data1_2++) {
-        w.put<WeaponT>(pmt.get_weapon(data1_1, data1_2));
+        rel.template put<WeaponT>(pmt.get_weapon(data1_1, data1_2));
       }
     }
     if constexpr (requires { root.weapon_stat_boost_index_table; }) {
-      root.weapon_stat_boost_index_table = w.size();
-      w.write(pmt.get_weapon_stat_boost_index_table());
+      root.weapon_stat_boost_index_table = rel.write(pmt.get_weapon_stat_boost_index_table());
     }
 
-    align(4);
-    root.photon_color_table = w.size();
+    rel.align(4);
+    root.photon_color_table = rel.w.size();
     for (size_t z = 0; z < pmt.num_photon_colors(); z++) {
-      w.put<PhotonColorEntryT<BE>>(pmt.get_photon_color(z));
+      rel.template put<PhotonColorEntryT<BE>>(pmt.get_photon_color(z));
     }
 
-    align(4);
-    root.weapon_range_table = w.size();
+    rel.align(4);
+    root.weapon_range_table = rel.w.size();
     for (size_t z = 0; z < pmt.num_weapon_ranges(); z++) {
-      w.put<WeaponRangeT<BE>>(pmt.get_weapon_range(z));
+      rel.template put<WeaponRangeT<BE>>(pmt.get_weapon_range(z));
     }
 
-    root.weapon_kind_table = w.size();
+    root.weapon_kind_table = rel.w.size();
     for (size_t z = 0; z < pmt.num_weapon_classes(); z++) {
-      w.put_u8(pmt.get_weapon_kind(z));
+      rel.w.put_u8(pmt.get_weapon_kind(z));
     }
 
     if constexpr (requires { root.weapon_integral_sale_divisor_table; }) {
-      root.weapon_integral_sale_divisor_table = w.size();
+      root.weapon_integral_sale_divisor_table = rel.w.size();
       for (size_t z = 0; z < pmt.num_weapon_classes(); z++) {
-        w.put_u8(pmt.get_sale_divisor(0, z));
+        rel.w.put_u8(pmt.get_sale_divisor(0, z));
       }
     } else {
-      align(4);
-      root.weapon_sale_divisor_table = w.size();
+      rel.align(4);
+      root.weapon_sale_divisor_table = rel.w.size();
       for (size_t z = 0; z < pmt.num_weapon_sale_divisors(); z++) {
-        w.put<F32T<BE>>(pmt.get_sale_divisor(0, z));
+        rel.template put<F32T<BE>>(pmt.get_sale_divisor(0, z));
       }
     }
 
     if constexpr (requires { root.non_weapon_integral_sale_divisor_table; }) {
-      root.non_weapon_integral_sale_divisor_table = w.size();
       NonWeaponSaleDivisorsDCProtos sds;
       sds.armor_divisor = pmt.get_sale_divisor(1, 1);
       sds.shield_divisor = pmt.get_sale_divisor(1, 2);
       sds.unit_divisor = pmt.get_sale_divisor(1, 3);
-      w.put<NonWeaponSaleDivisorsDCProtos>(sds);
+      root.non_weapon_integral_sale_divisor_table = rel.template put<NonWeaponSaleDivisorsDCProtos>(sds);
     } else {
-      align(4);
-      root.non_weapon_sale_divisor_table = w.size();
+      rel.align(4);
       NonWeaponSaleDivisorsT<BE> sds;
       sds.armor_divisor = pmt.get_sale_divisor(1, 1);
       sds.shield_divisor = pmt.get_sale_divisor(1, 2);
       sds.unit_divisor = pmt.get_sale_divisor(1, 3);
       sds.mag_divisor = pmt.get_sale_divisor(2, 0);
-      w.put<NonWeaponSaleDivisorsT<BE>>(sds);
+      root.non_weapon_sale_divisor_table = rel.template put<NonWeaponSaleDivisorsT<BE>>(sds);
     }
 
     MagFeedResultsListOffsetsT<BE> mag_feed_result_offsets;
     for (size_t table_index = 0; table_index < 8; table_index++) {
-      mag_feed_result_offsets[table_index] = w.size();
+      mag_feed_result_offsets[table_index] = rel.w.size();
       for (size_t item_id = 0; item_id < 11; item_id++) {
-        w.put<MagFeedResult>(pmt.get_mag_feed_result(table_index, item_id));
+        rel.template put<MagFeedResult>(pmt.get_mag_feed_result(table_index, item_id));
       }
     }
 
-    root.star_value_table = w.size();
-    w.write(pmt.get_star_value_table());
+    root.star_value_table = rel.write(pmt.get_star_value_table());
 
     if constexpr (requires { root.unknown_a1; }) {
-      align(2);
-      root.unknown_a1 = w.size();
-      w.write(pmt.get_unknown_a1());
+      rel.align(2);
+      root.unknown_a1 = rel.write(pmt.get_unknown_a1());
     }
 
-    align(2);
-    root.special_table = w.size();
+    rel.align(2);
+    root.special_table = rel.w.size();
     for (size_t z = 0; z < pmt.num_specials(); z++) {
-      w.put<SpecialT<BE>>(pmt.get_special(z));
+      rel.template put<SpecialT<BE>>(pmt.get_special(z));
     }
 
-    align(4);
-    root.weapon_effect_table = w.size();
+    rel.align(4);
+    root.weapon_effect_table = rel.w.size();
     for (size_t z = 0; z < pmt.num_weapon_effects(); z++) {
-      w.put<WeaponEffectT<BE>>(pmt.get_weapon_effect(z));
+      rel.template put<WeaponEffectT<BE>>(pmt.get_weapon_effect(z));
     }
 
-    align(4);
+    rel.align(4);
     if constexpr (requires { root.shield_effect_table; }) {
-      root.shield_effect_table = w.size();
+      root.shield_effect_table = rel.w.size();
       for (size_t z = 0; z < pmt.num_shield_effects(); z++) {
-        w.put<ShieldEffectT<BE>>(pmt.get_shield_effect(z));
+        rel.template put<ShieldEffectT<BE>>(pmt.get_shield_effect(z));
       }
     }
 
-    align(4);
+    rel.align(4);
     if constexpr (requires { root.sound_remap_table; }) {
       std::vector<SoundRemapTableOffsetsT<BE>> remap_refs;
       const auto& remaps = pmt.get_all_sound_remaps();
       for (const auto& remap : remaps) {
         auto& remap_ref = remap_refs.emplace_back();
         remap_ref.sound_id = remap.sound_id;
-        remap_ref.remaps_for_rt_index_table = w.size();
+        remap_ref.remaps_for_rt_index_table = rel.w.size();
         for (uint32_t remap_sound_id : remap.by_rt_index) {
-          w.put<U32T<BE>>(remap_sound_id);
+          rel.template put<U32T<BE>>(remap_sound_id);
         }
-        remap_ref.remaps_for_char_class_table = w.size();
+        remap_ref.remaps_for_char_class_table = rel.w.size();
         for (uint32_t remap_sound_id : remap.by_char_class) {
-          w.put<U32T<BE>>(remap_sound_id);
+          rel.template put<U32T<BE>>(remap_sound_id);
         }
       }
-      ArrayRefT<BE> remap_vec{remaps.size(), w.size()};
+      ArrayRefT<BE> remap_vec{remaps.size(), rel.w.size()};
       for (const auto& remap_ref : remap_refs) {
-        w.put<SoundRemapTableOffsetsT<BE>>(remap_ref);
-        relocations.emplace(w.size() - 8);
-        relocations.emplace(w.size() - 4);
+        uint32_t offset = rel.template put<SoundRemapTableOffsetsT<BE>>(remap_ref);
+        rel.relocations.emplace(offset + 4);
+        rel.relocations.emplace(offset + 8);
       }
-      root.sound_remap_table = w.size();
-      write_ref(remap_vec);
+      root.sound_remap_table = rel.write_ref(remap_vec);
     }
 
-    align(4);
-    root.stat_boost_table = w.size();
+    rel.align(4);
+    root.stat_boost_table = rel.w.size();
     for (size_t z = 0; z < pmt.num_stat_boosts(); z++) {
-      w.put<StatBoostT<BE>>(pmt.get_stat_boost(z));
+      rel.template put<StatBoostT<BE>>(pmt.get_stat_boost(z));
     }
 
     if constexpr (requires { root.max_tech_level_table; }) {
-      root.max_tech_level_table = w.size();
       MaxTechniqueLevels max_tech_levels;
       for (size_t tech_num = 0; tech_num < 0x13; tech_num++) {
         for (size_t char_class = 0; char_class < 0x0C; char_class++) {
           max_tech_levels[tech_num][char_class] = pmt.get_max_tech_level(char_class, tech_num);
         }
       }
-      w.put<MaxTechniqueLevels>(max_tech_levels);
+      root.max_tech_level_table = rel.template put<MaxTechniqueLevels>(max_tech_levels);
     }
 
     ArrayRefT<BE> combination_table_ref;
     if constexpr (requires { root.combination_table; }) {
-      combination_table_ref.offset = w.size();
+      combination_table_ref.offset = rel.w.size();
       combination_table_ref.count = pmt.num_item_combinations();
       for (size_t z = 0; z < combination_table_ref.count; z++) {
-        w.put<ItemCombination>(pmt.get_item_combination(z));
+        rel.template put<ItemCombination>(pmt.get_item_combination(z));
       }
     }
 
     if constexpr (requires { root.tech_boost_table; }) {
-      align(4);
-      root.tech_boost_table = w.size();
+      rel.align(4);
+      root.tech_boost_table = rel.w.size();
       for (size_t z = 0; z < pmt.num_tech_boosts(); z++) {
-        w.put<TechBoostT<BE>>(pmt.get_tech_boost(z));
+        rel.template put<TechBoostT<BE>>(pmt.get_tech_boost(z));
       }
     }
 
@@ -3165,8 +3118,8 @@ public:
     if constexpr (requires { root.unwrap_table; }) {
       for (size_t event = 0; event < pmt.num_events(); event++) {
         auto [event_items, num_items] = pmt.get_event_items(event);
-        unwrap_table_refs.emplace_back(ArrayRefT<BE>{num_items, w.size()});
-        w.write(event_items, sizeof(EventItem) * num_items);
+        unwrap_table_refs.emplace_back(ArrayRefT<BE>{num_items, rel.w.size()});
+        rel.write(event_items, sizeof(EventItem) * num_items);
       }
     }
 
@@ -3174,95 +3127,65 @@ public:
     if constexpr (requires { root.unsealable_table; }) {
       const auto& items = pmt.all_unsealable_items();
       unsealable_table_ref.count = items.size();
-      unsealable_table_ref.offset = w.size();
+      unsealable_table_ref.offset = rel.w.size();
       for (const auto& item : items) {
         UnsealableItem encoded;
         u32_to_item_code(encoded.item, item);
-        w.put<UnsealableItem>(encoded);
+        rel.template put<UnsealableItem>(encoded);
       }
     }
 
     ArrayRefT<BE> ranged_specials_ref;
     if constexpr (requires { root.ranged_special_table; }) {
       ranged_specials_ref.count = pmt.num_ranged_specials();
-      ranged_specials_ref.offset = w.size();
+      ranged_specials_ref.offset = rel.w.size();
       for (size_t z = 0; z < ranged_specials_ref.count; z++) {
-        w.put<RangedSpecial>(pmt.get_ranged_special(z));
+        rel.template put<RangedSpecial>(pmt.get_ranged_special(z));
       }
     }
 
-    align(4);
-    root.armor_table = w.size();
-    write_ref(armors_ref);
-    write_ref(shields_ref);
-    root.unit_table = w.size();
-    write_ref(units_ref);
-    root.mag_table = w.size();
-    write_ref(mags_ref);
-    root.tool_table = w.size();
+    rel.align(4);
+    root.armor_table = rel.write_ref(armors_ref);
+    rel.write_ref(shields_ref);
+    root.unit_table = rel.write_ref(units_ref);
+    root.mag_table = rel.write_ref(mags_ref);
+    root.tool_table = rel.w.size();
     for (const auto& ref : tool_refs) {
-      write_ref(ref);
+      rel.write_ref(ref);
     }
-    root.weapon_table = w.size();
+    root.weapon_table = rel.w.size();
     for (const auto& ref : weapon_refs) {
-      write_ref(ref);
+      rel.write_ref(ref);
     }
     if constexpr (requires { root.combination_table; }) {
-      root.combination_table = w.size();
-      write_ref(combination_table_ref);
+      root.combination_table = rel.write_ref(combination_table_ref);
     }
     if constexpr (requires { root.unwrap_table; }) {
-      ArrayRefT<BE> event_ref{unwrap_table_refs.size(), w.size()};
+      ArrayRefT<BE> event_ref{unwrap_table_refs.size(), rel.w.size()};
       for (const auto& ref : unwrap_table_refs) {
-        write_ref(ref);
+        rel.write_ref(ref);
       }
-      root.unwrap_table = w.size();
-      write_ref(event_ref);
+      root.unwrap_table = rel.write_ref(event_ref);
     }
     if constexpr (requires { root.unsealable_table; }) {
-      root.unsealable_table = w.size();
-      write_ref(unsealable_table_ref);
+      root.unsealable_table = rel.write_ref(unsealable_table_ref);
     }
     if constexpr (requires { root.ranged_special_table; }) {
-      root.ranged_special_table = w.size();
-      write_ref(ranged_specials_ref);
+      root.ranged_special_table = rel.write_ref(ranged_specials_ref);
     }
 
-    root.mag_feed_table = w.size();
-    w.put<MagFeedResultsListOffsetsT<BE>>(mag_feed_result_offsets);
+    root.mag_feed_table = rel.template put<MagFeedResultsListOffsetsT<BE>>(mag_feed_result_offsets);
     for (size_t z = 1; z <= 8; z++) {
-      relocations.emplace(w.size() - (z * 4));
+      rel.relocations.emplace(rel.w.size() - (z * 4));
     }
 
-    RELFileFooterT<BE> footer;
-    footer.root_offset = w.size();
-    w.put<RootT>(root);
+    uint32_t root_offset = rel.template put<RootT>(root);
     constexpr size_t root_field_count = (sizeof(RootT) / 4) - ((requires { root.entry_count; }) ? 1 : 0);
     for (size_t z = 1; z <= root_field_count; z++) {
-      relocations.emplace(w.size() - (z * 4));
+      rel.relocations.emplace(rel.w.size() - (z * 4));
     }
 
-    align(0x20);
-    footer.relocations_offset = w.size();
-    footer.num_relocations = relocations.size();
-    footer.unused1[0] = 1;
-    uint32_t last_offset = 0;
-    for (uint32_t reloc_offset : relocations) {
-      if (reloc_offset & 3) {
-        throw logic_error("Relocation is not 4-byte aligned");
-      }
-      size_t reloc_value = (reloc_offset - last_offset) >> 2;
-      if (reloc_value > 0xFFFF) {
-        throw runtime_error("Relocation offset is too far away from previous");
-      }
-      w.put<U16T<BE>>(reloc_value);
-      last_offset = reloc_offset;
-    }
-
-    align(0x20);
-    w.put<RELFileFooterT<BE>>(footer);
-
-    return std::move(w.str());
+    return rel.finalize(root_offset);
   }
 
 protected:
@@ -3270,7 +3193,7 @@ protected:
   phosg::StringReader r;
   const RootT* root;
 
-  mutable std::optional<std::set<uint32_t>> start_offsets;
+  mutable std::set<uint32_t> start_offsets;
 
   mutable std::unordered_map<uint16_t, Weapon> weapons;
   mutable std::vector<ArmorOrShield> armors;
@@ -3292,7 +3215,7 @@ protected:
   // the matching order matters.
   mutable std::optional<std::map<uint32_t, std::vector<ItemCombination>>> item_combination_index;
 
-  mutable std::optional<std::unordered_set<uint32_t>> unsealable_table;
+  mutable std::optional<std::set<uint32_t>> unsealable_table;
 };
 
 using ItemParameterTableDCNTE = BinaryItemParameterTableT<
