@@ -3,7 +3,7 @@
 .meta name="PSO Peeps EP2 5x EXP"
 .meta description="Sets EP2 enemy EXP\nto 5x for GC crossplay"
 
-.versions 3OE1
+.versions 3OE2
 
 entry_ptr:
 reloc0:
@@ -12,7 +12,7 @@ reloc0:
 start:
   .include  WriteCodeBlocks
 
-  # PSO Peeps GC Plus USA / 3OE1
+  # PSO Peeps GC Plus USA / 3OE2
   # Source table: BattleParamEntry_lab_on.dat
   # Active online battle-param table loaded at 0x811AB7C0
   # EXP field offset within each 0x24-byte row is +0x1C
