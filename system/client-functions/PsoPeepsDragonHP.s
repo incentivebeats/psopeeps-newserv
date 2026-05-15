@@ -1,6 +1,6 @@
 .meta visibility="menu"
 .meta key="PsoPeepsDragonHP"
-.meta name="PSO Peeps Dragon HP"
+.meta name="Dragon HP"
 .meta description="Sets Normal Dragon HP\nto 1800 for V2 crossplay"
 
 .versions 3OE2 3OP0
