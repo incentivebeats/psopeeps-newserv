@@ -1,12 +1,16 @@
+.meta visibility="menu"
+.meta key="PsoPeepsDragonHP"
 .meta name="PSO Peeps Dragon HP"
 .meta description="Sets Normal Dragon HP\nto 1800 for V2 crossplay"
+
+.versions 3OE1
 
 entry_ptr:
 reloc0:
   .offsetof start
 
 start:
-  .include  WriteCodeBlocksGC
+  .include  WriteCodeBlocks
 
   # GC Plus USA / 3OE1
   # BattleParamEntry_on.dat loaded Normal Dragon row at 0x811ABA48
