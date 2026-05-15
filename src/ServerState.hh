@@ -112,6 +112,7 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   std::string name;
   std::unordered_map<std::string, std::shared_ptr<PortConfiguration>> name_to_port_config;
   std::unordered_map<uint16_t, std::shared_ptr<PortConfiguration>> number_to_port_config;
+  std::unordered_map<uint16_t, uint16_t> ip_stack_port_remap;
   std::string username;
   std::string dns_server_addr;
   uint16_t dns_server_port = 0;

@@ -737,6 +737,23 @@ void ServerState::load_config_early() {
     }
 
     this->set_port_configuration(parse_port_configuration(this->config_json->at("PortConfiguration")));
+
+    this->ip_stack_port_remap.clear();
+    try {
+      for (const auto& item : this->config_json->at("IPStackPortRemap").as_dict()) {
+        uint64_t from_port = stoull(item.first, nullptr, 0);
+        uint64_t to_port = item.second->as_int();
+
+        if (from_port > 0xFFFF || to_port > 0xFFFF) {
+          throw runtime_error("IPStackPortRemap port number is out of range");
+        }
+
+        this->ip_stack_port_remap.emplace(
+            static_cast<uint16_t>(from_port),
+            static_cast<uint16_t>(to_port));
+      }
+    } catch (const out_of_range&) {
+    }
     try {
       auto spec = this->parse_port_spec(this->config_json->at("DNSServerPort"));
       this->dns_server_addr = std::move(spec.first);
