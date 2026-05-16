@@ -40,7 +40,8 @@ find_factor:
   nop
 
 factor_found:
-  mov.w   r5, [r6 + 2]
+  add     r6, 2
+  mov.w   r5, [r6]
   test    r5, r5
   bt      halve_table
 
