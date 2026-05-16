@@ -3627,6 +3627,59 @@ static asio::awaitable<void> on_set_entity_set_flag(shared_ptr<Client> c, Subcom
   co_await forward_subcommand_with_entity_id_transcode_t<G_SetEntitySetFlags_6x76>(c, msg);
 }
 
+
+// Dispatch the right per-difficulty DC V2 EXP table when the player has the
+// universal EXP shim enabled. The shim's body covers Normal; this corrects to
+// the actual loaded difficulty on every set-events trigger.
+static asio::awaitable<void> dispatch_dc_v2_exp_patch(shared_ptr<Client> c) {
+  if (c->version() != Version::DC_V2) {
+    co_return;
+  }
+  if (not c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL)) {
+    co_return;
+  }
+  if (not c->login || not c->login->account) {
+    co_return;
+  }
+  if (not c->login->account->auto_patches_enabled.count("PsoPeepsV2EXP_enabled")) {
+    co_return;
+  }
+
+  auto l = c->require_lobby();
+  if (not l->is_game()) {
+    co_return;
+  }
+
+  const char* diff_str = nullptr;
+  switch (l->difficulty) {
+    case Difficulty::NORMAL:
+      diff_str = "normal";
+      break;
+    case Difficulty::HARD:
+      diff_str = "hard";
+      break;
+    case Difficulty::VERY_HARD:
+      diff_str = "vh";
+      break;
+    case Difficulty::ULTIMATE:
+      diff_str = "ult";
+      break;
+    default:
+      co_return;
+  }
+
+  string key = "PsoPeepsV2EXP_internal_10x_";
+  key += diff_str;
+
+  try {
+    auto server_state = c->require_server_state();
+    auto fn = server_state->client_functions->get(key, c->specific_version);
+    co_await send_function_call(c, fn);
+  } catch (const out_of_range&) {
+    c->log.warning_f("DC V2 EXP dispatcher could not find client function {}", key);
+  }
+}
+
 static asio::awaitable<void> on_trigger_set_event(shared_ptr<Client> c, SubcommandMessage& msg) {
   auto l = c->require_lobby();
   if (!l->is_game()) {
@@ -3645,6 +3698,7 @@ static asio::awaitable<void> on_trigger_set_event(shared_ptr<Client> c, Subcomma
   }
 
   forward_subcommand(c, msg);
+  co_await dispatch_dc_v2_exp_patch(c);
 }
 
 static inline uint32_t bswap32_high16(uint32_t v) {
