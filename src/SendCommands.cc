@@ -702,7 +702,7 @@ static bool is_battle_param_stream_file_for_blueballz(const string& filename) {
       (filename == "BattleParamEntry_ep4_on.dat");
 }
 
-[[maybe_unused]] static string bb_stream_file_data_for_client(shared_ptr<Client> c) {
+static string bb_stream_file_data_for_client(shared_ptr<Client> c) {
   auto s = c->require_server_state();
 
   int64_t effective_blueballz_hp_scale_tier = (c->selected_blueballz_tier >= 0)
@@ -770,19 +770,50 @@ static bool is_battle_param_stream_file_for_blueballz(const string& filename) {
 
 
 void send_stream_file_index_bb(shared_ptr<Client> c) {
-  c->log.info_f("BB stream file index disabled; sending empty index");
+  auto s = c->require_server_state();
+
+  string contents = bb_stream_file_data_for_client(c);
+  c->log.info_f("BB stream file index: sending {} entries from {} bytes",
+      s->bb_stream_file->entries.size(), contents.size());
 
   vector<S_StreamFileIndexEntry_BB_01EB> entries;
+  for (const auto& sf_entry : s->bb_stream_file->entries) {
+    if ((sf_entry.offset > contents.size()) ||
+        (sf_entry.size > (contents.size() - sf_entry.offset))) {
+      throw runtime_error("invalid BB stream file entry range");
+    }
+
+    auto& e = entries.emplace_back();
+    e.size = sf_entry.size;
+    e.checksum = crc32(contents.data() + sf_entry.offset, e.size);
+    e.offset = sf_entry.offset;
+    e.filename.encode(sf_entry.filename);
+  }
+
   send_command_vt(c, 0x01EB, entries.size(), entries);
 }
 
 void send_stream_file_chunk_bb(shared_ptr<Client> c, uint32_t chunk_index) {
-  c->log.info_f("BB stream files disabled; sending empty chunk for request {}", chunk_index);
+  string contents = bb_stream_file_data_for_client(c);
 
-  S_StreamFileChunk_BB_02EB chunk_cmd = {};
+  S_StreamFileChunk_BB_02EB chunk_cmd;
   chunk_cmd.chunk_index = chunk_index;
+  size_t offset = sizeof(chunk_cmd.data) * chunk_index;
+  if (offset > contents.size()) {
+    c->log.warning_f("BB stream chunk request {} is beyond end of stream data: offset={} size={}",
+        chunk_index, offset, contents.size());
+    throw runtime_error("client requested chunk beyond end of stream file");
+  }
 
-  size_t cmd_size = offsetof(S_StreamFileChunk_BB_02EB, data);
+  size_t bytes = min<size_t>(contents.size() - offset, sizeof(chunk_cmd.data));
+  chunk_cmd.data.assign_range(reinterpret_cast<const uint8_t*>(contents.data() + offset), bytes, 0);
+
+  if ((chunk_index < 3) || (bytes < sizeof(chunk_cmd.data))) {
+    c->log.info_f("BB stream chunk: index={} offset={} bytes={} total={}",
+        chunk_index, offset, bytes, contents.size());
+  }
+
+  size_t cmd_size = offsetof(S_StreamFileChunk_BB_02EB, data) + bytes;
   cmd_size = (cmd_size + 3) & ~3;
   send_command(c, 0x02EB, 0x00000000, &chunk_cmd, cmd_size);
 }
