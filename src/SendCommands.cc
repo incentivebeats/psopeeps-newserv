@@ -702,7 +702,7 @@ static bool is_battle_param_stream_file_for_blueballz(const string& filename) {
       (filename == "BattleParamEntry_ep4_on.dat");
 }
 
-static string bb_stream_file_data_for_client(shared_ptr<Client> c) {
+[[maybe_unused]] static string bb_stream_file_data_for_client(shared_ptr<Client> c) {
   auto s = c->require_server_state();
 
   int64_t effective_blueballz_hp_scale_tier = (c->selected_blueballz_tier >= 0)
