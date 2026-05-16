@@ -1356,9 +1356,24 @@ asio::awaitable<void> IPStackSimulator::open_server_connection(
   string conn_str = this->str_for_tcp_connection(c, conn);
 
   // Figure out which logical port the connection should go to
-  auto port_config_it = this->state->number_to_port_config.find(conn->server_port);
+  uint16_t effective_server_port = conn->server_port;
+  auto remap_it = this->state->ip_stack_port_remap.find(effective_server_port);
+  if (remap_it != this->state->ip_stack_port_remap.end()) {
+    this->log.info_f(
+        "Remapping IP stack TCP destination port {} to {} for connection {}",
+        effective_server_port,
+        remap_it->second,
+        conn_str);
+    effective_server_port = remap_it->second;
+  }
+
+  auto port_config_it = this->state->number_to_port_config.find(effective_server_port);
   if (port_config_it == this->state->number_to_port_config.end()) {
-    this->log.error_f("TCP connection {} is to undefined port {}", conn_str, conn->server_port);
+    this->log.error_f(
+        "TCP connection {} is to undefined port {} after remap from {}",
+        conn_str,
+        effective_server_port,
+        conn->server_port);
     co_await this->close_tcp_connection(c, conn);
     co_return;
   }
@@ -1371,7 +1386,7 @@ asio::awaitable<void> IPStackSimulator::open_server_connection(
     co_await this->close_tcp_connection(c, conn);
     co_return;
   } else {
-    this->state->game_server->connect_channel(conn->server_channel, conn->server_port, port_config->behavior);
+    this->state->game_server->connect_channel(conn->server_channel, effective_server_port, port_config->behavior);
     this->log.info_f("Connected TCP connection {} to game server", conn_str);
   }
 }
