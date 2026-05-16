@@ -5497,26 +5497,6 @@ static asio::awaitable<void> on_6F(shared_ptr<Client> c, Channel::Message& msg) 
     if ((msg.command == 0x006F) && (c->lobby_client_id != l->leader_id)) {
       l->assign_inventory_and_bank_item_ids(c, true);
     }
-
-    if (c->login && c->login->account && c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL) &&
-        c->check_flag(Client::Flag::SEND_FUNCTION_CALL_ACTUALLY_RUNS_CODE) &&
-        !c->login->account->auto_patches_enabled.empty()) {
-      auto s = c->require_server_state();
-      unordered_set<shared_ptr<const ClientFunctionIndex::Function>> functions_to_send;
-      for (const auto& patch_name : c->login->account->auto_patches_enabled) {
-        try {
-          functions_to_send.emplace(s->client_functions->get(patch_name, c->specific_version));
-        } catch (const out_of_range&) {
-          c->log.warning_f("Client has selected patch {} enabled, but it is not available for specific_version {}",
-              patch_name, str_for_specific_version(c->specific_version));
-        }
-      }
-
-      if (!functions_to_send.empty()) {
-        c->log.info_f("Resending {} selected patch-menu function(s) after loading", functions_to_send.size());
-        co_await send_function_call_multi(c, functions_to_send);
-      }
-    }
   }
 
   if (l->ep3_server && l->ep3_server->battle_finished) {
