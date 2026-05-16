@@ -4188,7 +4188,8 @@ static asio::awaitable<void> on_E3_BB(shared_ptr<Client> c, Channel::Message& ms
     c->bb_bank_character_index = cmd.character_index;
 
     auto s = c->require_server_state();
-    if (!enforce_bb_hardcore_ship_lock(c, s->enable_hardcore_mode)) {
+    if (!s->enable_bb_ship_selection_menu &&
+        !enforce_bb_hardcore_ship_lock(c, s->enable_hardcore_mode)) {
       c->unload_character(false);
       co_return;
     }
