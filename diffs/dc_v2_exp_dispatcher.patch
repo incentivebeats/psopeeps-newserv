@@ -1,0 +1,99 @@
+Subject: [PATCH] DC V2 EXP: server-side per-difficulty dispatcher hooked into set-events
+
+Adds a `dispatch_dc_v2_exp_patch` helper that:
+  - no-ops unless the client is DC V2, supports send_function_call, has
+    `PsoPeepsV2EXP_enabled` in `auto_patches_enabled`, and is in an actual game
+  - reads the lobby's current difficulty
+  - looks up `PsoPeepsV2EXP_internal_{10|5}x_{normal|hard|vh|ult}` (10x preferred
+    if both deployed; falls back to 5x)
+  - sends it via the existing send_function_call coroutine
+
+Hooks the dispatcher at the end of `on_trigger_set_event`, which fires on every
+6x67 the client emits (i.e. every area transition that triggers map events).
+This survives all difficulty/area cycling because the patch is re-applied on
+every trigger.
+
+The menu-visible shim `PsoPeepsV2EXP_enabled` uses a fixed key across both 5x
+week and 10x weekend deploys, so a player's selection survives the systemd
+file swap.
+
+---
+ src/ReceiveSubcommands.cc | 41 +++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 41 insertions(+)
+
+diff --git a/src/ReceiveSubcommands.cc b/src/ReceiveSubcommands.cc
+--- a/src/ReceiveSubcommands.cc
++++ b/src/ReceiveSubcommands.cc
+@@ -- (around line 3637 — directly before the existing `on_trigger_set_event`) --
++// Dispatch the right per-difficulty DC V2 EXP table when the player has the
++// universal EXP shim enabled. The shim's body covers Normal; this corrects to
++// the actual loaded difficulty on every set-events trigger. No-op for non-DC-V2
++// clients, clients without the shim toggled on, or when the right internal
++// patch isn't currently deployed.
++static asio::awaitable<void> dispatch_dc_v2_exp_patch(std::shared_ptr<Client> c) {
++  if (c->version() != Version::DC_V2) {
++    co_return;
++  }
++  if (!c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL)) {
++    co_return;
++  }
++  if (!c->login || !c->login->account) {
++    co_return;
++  }
++  if (!c->login->account->auto_patches_enabled.contains("PsoPeepsV2EXP_enabled")) {
++    co_return;
++  }
++
++  auto l = c->require_lobby();
++  if (!l->is_game()) {
++    co_return;
++  }
++
++  const char* diff_str;
++  switch (l->difficulty) {
++    case Difficulty::NORMAL:    diff_str = "normal"; break;
++    case Difficulty::HARD:      diff_str = "hard";   break;
++    case Difficulty::VERY_HARD: diff_str = "vh";     break;
++    case Difficulty::ULTIMATE:  diff_str = "ult";    break;
++    default:                    co_return;
++  }
++
++  auto s = c->require_server_state();
++  // Try 10x first; fall back to 5x. The active multiplier is whichever set is
++  // deployed by the current week's systemd timer state.
++  for (int mult : {10, 5}) {
++    std::string key = std::format("PsoPeepsV2EXP_internal_{}x_{}", mult, diff_str);
++    std::shared_ptr<Function> fn;
++    try {
++      fn = s->client_functions->get(key, c->specific_version);
++    } catch (...) {
++      continue;
++    }
++    if (fn) {
++      co_await send_function_call(c, fn);
++      co_return;
++    }
++  }
++}
++
+ static asio::awaitable<void> on_trigger_set_event(shared_ptr<Client> c, SubcommandMessage& msg) {
+   auto l = c->require_lobby();
+   if (!l->is_game()) {
+     co_return;
+   }
+
+   const auto& cmd = msg.check_size_t<G_TriggerSetEvent_6x67>();
+   auto event_sts = l->map_state->event_states_for_id(c->version(), cmd.floor, cmd.event_id);
+   l->log.info_f("Client triggered set events with floor {:02X} and ID {:X} ({} events)",
+       cmd.floor, cmd.event_id, event_sts.size());
+   for (auto ev_st : event_sts) {
+     ev_st->flags |= 0x04;
+     if (c->check_flag(Client::Flag::DEBUG_ENABLED)) {
+       send_text_message_fmt(c, "$C5W-{:03X} START", ev_st->w_id);
+     }
+   }
+
+   forward_subcommand(c, msg);
++
++  co_await dispatch_dc_v2_exp_patch(c);
+ }
