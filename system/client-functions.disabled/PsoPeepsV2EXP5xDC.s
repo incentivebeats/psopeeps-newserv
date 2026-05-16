@@ -33,8 +33,9 @@ find_factor:
   cmpeq   r0, r5
   bt      factor_found
   add     r6, 4
-  dt      r7
-  bf      find_factor
+  add     r7, -1
+  cmpgt   r7, 0
+  bt      find_factor
   rets
   nop
 
@@ -57,8 +58,9 @@ multiply_loop:
   sts     macl, r0
   mov.w   [r4], r0
   add     r4, r6
-  dt      r7
-  bf      multiply_loop
+  add     r7, -1
+  cmpgt   r7, 0
+  bt      multiply_loop
   rets
   nop
 
@@ -76,8 +78,9 @@ halve_loop:
   shlr    r0
   mov.w   [r4], r0
   add     r4, r6
-  dt      r7
-  bf      halve_loop
+  add     r7, -1
+  cmpgt   r7, 0
+  bt      halve_loop
   rets
   nop
 

@@ -473,6 +473,9 @@ static asio::awaitable<void> send_auto_patches_if_needed(shared_ptr<Client> c) {
       }
     }
     for (const auto& patch_name : c->login->account->auto_patches_enabled) {
+    if ((patch_name != "PsoPeepsV2EXP5xDC") && (patch_name != "PsoPeepsV2EXP10xDC")) {
+      continue;
+    }
       try {
         functions_to_send.emplace(s->client_functions->get(patch_name, c->specific_version));
       } catch (const out_of_range&) {
@@ -5504,6 +5507,9 @@ static asio::awaitable<void> on_6F(shared_ptr<Client> c, Channel::Message& msg) 
       auto s = c->require_server_state();
       unordered_set<shared_ptr<const ClientFunctionIndex::Function>> functions_to_send;
       for (const auto& patch_name : c->login->account->auto_patches_enabled) {
+    if ((patch_name != "PsoPeepsV2EXP5xDC") && (patch_name != "PsoPeepsV2EXP10xDC")) {
+      continue;
+    }
         try {
           functions_to_send.emplace(s->client_functions->get(patch_name, c->specific_version));
         } catch (const out_of_range&) {
@@ -5513,7 +5519,7 @@ static asio::awaitable<void> on_6F(shared_ptr<Client> c, Channel::Message& msg) 
       }
 
       if (!functions_to_send.empty()) {
-        c->log.info_f("Resending {} selected patch-menu function(s) after loading", functions_to_send.size());
+        c->log.info_f("Resending {} selected Dreamcast V2 EXP patch function(s) after loading", functions_to_send.size());
         co_await send_function_call_multi(c, functions_to_send);
       }
     }
