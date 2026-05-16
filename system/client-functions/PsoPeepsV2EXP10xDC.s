@@ -26,8 +26,9 @@ start:
   mov.l   r8, [r0]
 
   # r9 = sentinel at index 2: active_table + (2 * 0x24)
-  mov.w   r9, [r8 + 0x48]
-
+  mov     r12, r8
+  add     r12, 0x48
+  mov.w   r9, [r12]
   mova    r0, [factor_table]
   mov     r10, r0
   mov     r11, 8
