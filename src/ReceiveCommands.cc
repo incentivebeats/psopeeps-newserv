@@ -2934,8 +2934,9 @@ static asio::awaitable<void> on_10_main_menu(shared_ptr<Client> c, uint32_t item
       // an already-loaded character, so the backend character-select gate alone
       // is not enough.
       if (bb_character_is_hardcore_dead(c)) {
+        c->log.warning_f("Blocked dead BB Hardcore character from ship menu: {}", c->character_filename());
         send_message_box(c, "$C6This Hardcore character is dead.\n\n$C7The character remains in your list, but cannot be loaded.");
-        c->channel->disconnect();
+        send_main_menu(c);
         break;
       }
 
@@ -2950,8 +2951,9 @@ static asio::awaitable<void> on_10_main_menu(shared_ptr<Client> c, uint32_t item
         if (!bb_character_is_hardcore_ineligible(c)) {
           mark_bb_character_hardcore_ineligible(c);
         }
+        c->log.warning_f("Blocked tainted/ineligible BB character from Hardcore ship menu: {}", c->character_filename());
         send_message_box(c, "$C6This BB character is tainted and cannot enter Hardcore.\n\n$C7Create a new character and enter Hardcore first.");
-        c->channel->disconnect();
+        send_main_menu(c);
         break;
       }
 
