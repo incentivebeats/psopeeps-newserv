@@ -5,7 +5,6 @@
 #include <time.h>
 
 #include <fstream>
-#include <unordered_set>
 #include <memory>
 #include <phosg/Random.hh>
 #include <phosg/Strings.hh>
@@ -78,45 +77,6 @@ struct SubcommandDefinition {
 using SDF = SubcommandDefinition::Flag;
 
 extern const vector<SubcommandDefinition> subcommand_definitions;
-
-static asio::awaitable<void> resend_selected_patch_menu_functions_after_dc_floor_load(
-    shared_ptr<Client> c,
-    const char* reason) {
-  if (c->version() != Version::DC_V2) {
-    co_return;
-  }
-
-  auto l = c->lobby.lock();
-  if (!l || !l->is_game()) {
-    co_return;
-  }
-
-  if (!c->login || !c->login->account ||
-      !c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL) ||
-      !c->check_flag(Client::Flag::SEND_FUNCTION_CALL_ACTUALLY_RUNS_CODE) ||
-      c->login->account->auto_patches_enabled.empty()) {
-    co_return;
-  }
-
-  auto s = c->require_server_state();
-  unordered_set<shared_ptr<const ClientFunctionIndex::Function>> functions_to_send;
-  for (const auto& patch_name : c->login->account->auto_patches_enabled) {
-    if ((patch_name != "PsoPeepsV2EXP5xDC") && (patch_name != "PsoPeepsV2EXP10xDC")) {
-      continue;
-    }
-    try {
-      functions_to_send.emplace(s->client_functions->get(patch_name, c->specific_version));
-    } catch (const out_of_range&) {
-      c->log.warning_f("Client has selected patch {} enabled, but it is not available for specific_version {}",
-          patch_name, str_for_specific_version(c->specific_version));
-    }
-  }
-
-  if (!functions_to_send.empty()) {
-    c->log.info_f("Resending {} selected Dreamcast V2 EXP patch function(s) after {}", functions_to_send.size(), reason);
-    co_await send_function_call_multi(c, functions_to_send);
-  }
-}
 
 
 
@@ -1850,7 +1810,6 @@ static asio::awaitable<void> on_change_floor_6x1F(shared_ptr<Client> c, Subcomma
     }
   }
   forward_subcommand(c, msg);
-  co_await resend_selected_patch_menu_functions_after_dc_floor_load(c, "6x1F floor command");
   co_return;
 }
 
@@ -1860,7 +1819,6 @@ static asio::awaitable<void> on_change_floor_6x21(shared_ptr<Client> c, Subcomma
     c->floor = cmd.floor;
   }
   forward_subcommand(c, msg);
-  co_await resend_selected_patch_menu_functions_after_dc_floor_load(c, "6x21 floor command");
   co_return;
 }
 
@@ -2146,15 +2104,10 @@ static asio::awaitable<void> on_movement_xz_with_floor(shared_ptr<Client> c, Sub
   }
   c->pos.x = cmd.pos.x;
   c->pos.z = cmd.pos.z;
-  bool floor_changed = false;
   if (cmd.floor >= 0 && c->floor != static_cast<uint32_t>(cmd.floor)) {
     c->floor = cmd.floor;
-    floor_changed = true;
   }
   forward_subcommand(c, msg);
-  if (floor_changed) {
-    co_await resend_selected_patch_menu_functions_after_dc_floor_load(c, "movement floor change");
-  }
 }
 
 template <typename CmdT>
@@ -2164,15 +2117,10 @@ static asio::awaitable<void> on_movement_xyz_with_floor(shared_ptr<Client> c, Su
     co_return;
   }
   c->pos = cmd.pos;
-  bool floor_changed = false;
   if (cmd.floor >= 0 && c->floor != static_cast<uint32_t>(cmd.floor)) {
     c->floor = cmd.floor;
-    floor_changed = true;
   }
   forward_subcommand(c, msg);
-  if (floor_changed) {
-    co_await resend_selected_patch_menu_functions_after_dc_floor_load(c, "movement floor change");
-  }
 }
 
 static asio::awaitable<void> on_set_animation_state(shared_ptr<Client> c, SubcommandMessage& msg) {
