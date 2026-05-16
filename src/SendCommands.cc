@@ -770,25 +770,9 @@ static string bb_stream_file_data_for_client(shared_ptr<Client> c) {
 
 
 void send_stream_file_index_bb(shared_ptr<Client> c) {
-  auto s = c->require_server_state();
-
-  c->log.info_f("PSO Peeps BBZ stream debug: send_stream_file_index_bb called");
+  c->log.info_f("BB stream file index disabled; sending empty index");
 
   vector<S_StreamFileIndexEntry_BB_01EB> entries;
-  string contents = bb_stream_file_data_for_client(c);
-  for (const auto& sf_entry : s->bb_stream_file->entries) {
-    if ((sf_entry.offset > contents.size()) ||
-        (sf_entry.size > (contents.size() - sf_entry.offset))) {
-      throw runtime_error("invalid BB stream file entry range");
-    }
-
-    auto& e = entries.emplace_back();
-    e.size = sf_entry.size;
-    e.checksum = crc32(contents.data() + sf_entry.offset, e.size);
-    e.offset = sf_entry.offset;
-    e.filename.encode(sf_entry.filename);
-
-  }
   send_command_vt(c, 0x01EB, entries.size(), entries);
 }
 
