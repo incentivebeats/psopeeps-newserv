@@ -777,21 +777,12 @@ void send_stream_file_index_bb(shared_ptr<Client> c) {
 }
 
 void send_stream_file_chunk_bb(shared_ptr<Client> c, uint32_t chunk_index) {
-  auto s = c->require_server_state();
+  c->log.info_f("BB stream files disabled; sending empty chunk for request {}", chunk_index);
 
-  string contents = bb_stream_file_data_for_client(c);
-
-  S_StreamFileChunk_BB_02EB chunk_cmd;
+  S_StreamFileChunk_BB_02EB chunk_cmd = {};
   chunk_cmd.chunk_index = chunk_index;
-  size_t offset = sizeof(chunk_cmd.data) * chunk_index;
-  if (offset > contents.size()) {
-    throw runtime_error("client requested chunk beyond end of stream file");
-  }
-  size_t bytes = min<size_t>(contents.size() - offset, sizeof(chunk_cmd.data));
-  chunk_cmd.data.assign_range(reinterpret_cast<const uint8_t*>(contents.data() + offset), bytes, 0);
 
-
-  size_t cmd_size = offsetof(S_StreamFileChunk_BB_02EB, data) + bytes;
+  size_t cmd_size = offsetof(S_StreamFileChunk_BB_02EB, data);
   cmd_size = (cmd_size + 3) & ~3;
   send_command(c, 0x02EB, 0x00000000, &chunk_cmd, cmd_size);
 }
