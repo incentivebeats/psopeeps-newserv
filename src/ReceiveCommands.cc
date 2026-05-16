@@ -446,6 +446,16 @@ static asio::awaitable<void> send_auto_patches_if_needed(shared_ptr<Client> c) {
     c->set_flag(Client::Flag::HAS_AUTO_PATCHES);
   }
 
+  if (!c->check_flag(Client::Flag::HAS_AUTO_PATCHES) &&
+      (c->version() == Version::PC_V2) &&
+      c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL) &&
+      !c->check_flag(Client::Flag::SEND_FUNCTION_CALL_ACTUALLY_RUNS_CODE)) {
+    c->log.info_f("Skipping auto patches for PC V2 client {} because send_function_call only supports checksums",
+        str_for_specific_version(c->specific_version));
+    c->set_flag(Client::Flag::HAS_AUTO_PATCHES);
+    co_return;
+  }
+
   if (!c->check_flag(Client::Flag::HAS_AUTO_PATCHES) && c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL)) {
     c->set_flag(Client::Flag::HAS_AUTO_PATCHES);
     co_await prepare_client_for_patches(c);
