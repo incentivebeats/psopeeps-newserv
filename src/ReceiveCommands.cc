@@ -2939,6 +2939,11 @@ static asio::awaitable<void> on_10_main_menu(shared_ptr<Client> c, uint32_t item
         break;
       }
 
+      if (bb_character_is_hardcore(c)) {
+        send_reconnect(c, s->connect_address_for_client(c), 19545);
+        break;
+      }
+
       if (bb_character_is_hardcore_ineligible(c) ||
           bb_character_is_test_tainted(c) ||
           bb_character_is_test_taint_grandfathered(c)) {
