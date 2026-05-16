@@ -770,6 +770,14 @@ static string bb_stream_file_data_for_client(shared_ptr<Client> c) {
 
 
 void send_stream_file_index_bb(shared_ptr<Client> c) {
+  constexpr bool send_empty_stream_file_index_for_test = true;
+  if (send_empty_stream_file_index_for_test) {
+    c->log.info_f("PSO Peeps BBZ stream debug: sending empty stream file index for test");
+    vector<S_StreamFileIndexEntry_BB_01EB> entries;
+    send_command_vt(c, 0x01EB, entries.size(), entries);
+    return;
+  }
+
   auto s = c->require_server_state();
 
   c->log.info_f("PSO Peeps BBZ stream debug: send_stream_file_index_bb called");
