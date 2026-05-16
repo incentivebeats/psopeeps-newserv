@@ -2925,6 +2925,16 @@ static asio::awaitable<void> on_10_main_menu(shared_ptr<Client> c, uint32_t item
         send_message_box(c, "$C6This ship option is only for Blue Burst.");
         break;
       }
+
+      c->log.warning_f(
+          "BB Hardcore gate: file={} dead={} hardcore={} ineligible={} test_tainted={} grandfathered={} listener_port={}",
+          c->character_filename(),
+          bb_character_is_hardcore_dead(c),
+          bb_character_is_hardcore(c),
+          bb_character_is_hardcore_ineligible(c),
+          bb_character_is_test_tainted(c),
+          bb_character_is_test_taint_grandfathered(c),
+          c->listener_port);
       if ((c->listener_port == 19545) || (c->listener_port == 19546)) {
         send_message_box(c, "$C6You are already on Hardcore Ship.\n\n$C7Choose Go to lobby or another ship.");
         break;
