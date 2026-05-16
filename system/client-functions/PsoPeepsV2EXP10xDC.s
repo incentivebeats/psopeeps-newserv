@@ -17,12 +17,22 @@ start:
   .binary   0a00
 
   .align    4
+  .data     0x8CD313DC
+  .data     2
+  .binary   0a00
+
+  .align    4
   .data     0x8CD713DC
   .data     2
   .binary   0a00
 
   .align    4
   .data     0x8CD21DE0
+  .data     2
+  .binary   3c00
+
+  .align    4
+  .data     0x8CD31400
   .data     2
   .binary   3c00
 
@@ -37,12 +47,22 @@ start:
   .binary   3200
 
   .align    4
+  .data     0x8CD31424
+  .data     2
+  .binary   3200
+
+  .align    4
   .data     0x8CD71424
   .data     2
   .binary   3200
 
   .align    4
   .data     0x8CD21E28
+  .data     2
+  .binary   4600
+
+  .align    4
+  .data     0x8CD31448
   .data     2
   .binary   4600
 
@@ -57,12 +77,22 @@ start:
   .binary   6400
 
   .align    4
+  .data     0x8CD3146C
+  .data     2
+  .binary   6400
+
+  .align    4
   .data     0x8CD7146C
   .data     2
   .binary   6400
 
   .align    4
   .data     0x8CD21E70
+  .data     2
+  .binary   dc05
+
+  .align    4
+  .data     0x8CD31490
   .data     2
   .binary   dc05
 
@@ -77,12 +107,22 @@ start:
   .binary   c800
 
   .align    4
+  .data     0x8CD314B4
+  .data     2
+  .binary   c800
+
+  .align    4
   .data     0x8CD714B4
   .data     2
   .binary   c800
 
   .align    4
   .data     0x8CD21EB8
+  .data     2
+  .binary   a000
+
+  .align    4
+  .data     0x8CD314D8
   .data     2
   .binary   a000
 
@@ -97,12 +137,22 @@ start:
   .binary   a000
 
   .align    4
+  .data     0x8CD314FC
+  .data     2
+  .binary   a000
+
+  .align    4
   .data     0x8CD714FC
   .data     2
   .binary   a000
 
   .align    4
   .data     0x8CD21F00
+  .data     2
+  .binary   aa00
+
+  .align    4
+  .data     0x8CD31520
   .data     2
   .binary   aa00
 
@@ -117,12 +167,22 @@ start:
   .binary   f000
 
   .align    4
+  .data     0x8CD31544
+  .data     2
+  .binary   f000
+
+  .align    4
   .data     0x8CD71544
   .data     2
   .binary   f000
 
   .align    4
   .data     0x8CD21F48
+  .data     2
+  .binary   2800
+
+  .align    4
+  .data     0x8CD31568
   .data     2
   .binary   2800
 
@@ -137,12 +197,22 @@ start:
   .binary   2800
 
   .align    4
+  .data     0x8CD3158C
+  .data     2
+  .binary   2800
+
+  .align    4
   .data     0x8CD7158C
   .data     2
   .binary   2800
 
   .align    4
   .data     0x8CD21F90
+  .data     2
+  .binary   2c01
+
+  .align    4
+  .data     0x8CD315B0
   .data     2
   .binary   2c01
 
@@ -157,12 +227,22 @@ start:
   .binary   1801
 
   .align    4
+  .data     0x8CD315D4
+  .data     2
+  .binary   1801
+
+  .align    4
   .data     0x8CD715D4
   .data     2
   .binary   1801
 
   .align    4
   .data     0x8CD21FD8
+  .data     2
+  .binary   581b
+
+  .align    4
+  .data     0x8CD315F8
   .data     2
   .binary   581b
 
@@ -177,12 +257,22 @@ start:
   .binary   6400
 
   .align    4
+  .data     0x8CD3161C
+  .data     2
+  .binary   6400
+
+  .align    4
   .data     0x8CD7161C
   .data     2
   .binary   6400
 
   .align    4
   .data     0x8CD22020
+  .data     2
+  .binary   6400
+
+  .align    4
+  .data     0x8CD31640
   .data     2
   .binary   6400
 
@@ -197,12 +287,22 @@ start:
   .binary   ac0d
 
   .align    4
+  .data     0x8CD31664
+  .data     2
+  .binary   ac0d
+
+  .align    4
   .data     0x8CD71664
   .data     2
   .binary   ac0d
 
   .align    4
   .data     0x8CD22068
+  .data     2
+  .binary   c800
+
+  .align    4
+  .data     0x8CD31688
   .data     2
   .binary   c800
 
@@ -217,12 +317,22 @@ start:
   .binary   8813
 
   .align    4
+  .data     0x8CD316AC
+  .data     2
+  .binary   8813
+
+  .align    4
   .data     0x8CD716AC
   .data     2
   .binary   8813
 
   .align    4
   .data     0x8CD2211C
+  .data     2
+  .binary   2800
+
+  .align    4
+  .data     0x8CD3173C
   .data     2
   .binary   2800
 
@@ -237,12 +347,22 @@ start:
   .binary   e803
 
   .align    4
+  .data     0x8CD31760
+  .data     2
+  .binary   e803
+
+  .align    4
   .data     0x8CD71760
   .data     2
   .binary   e803
 
   .align    4
   .data     0x8CD22164
+  .data     2
+  .binary   9600
+
+  .align    4
+  .data     0x8CD31784
   .data     2
   .binary   9600
 
@@ -257,12 +377,22 @@ start:
   .binary   1e00
 
   .align    4
+  .data     0x8CD317A8
+  .data     2
+  .binary   1e00
+
+  .align    4
   .data     0x8CD717A8
   .data     2
   .binary   1e00
 
   .align    4
   .data     0x8CD221AC
+  .data     2
+  .binary   b400
+
+  .align    4
+  .data     0x8CD317CC
   .data     2
   .binary   b400
 
@@ -277,12 +407,22 @@ start:
   .binary   dc00
 
   .align    4
+  .data     0x8CD317F0
+  .data     2
+  .binary   dc00
+
+  .align    4
   .data     0x8CD717F0
   .data     2
   .binary   dc00
 
   .align    4
   .data     0x8CD221F4
+  .data     2
+  .binary   c800
+
+  .align    4
+  .data     0x8CD31814
   .data     2
   .binary   c800
 
@@ -297,12 +437,22 @@ start:
   .binary   f000
 
   .align    4
+  .data     0x8CD31838
+  .data     2
+  .binary   f000
+
+  .align    4
   .data     0x8CD71838
   .data     2
   .binary   f000
 
   .align    4
   .data     0x8CD2223C
+  .data     2
+  .binary   3c00
+
+  .align    4
+  .data     0x8CD3185C
   .data     2
   .binary   3c00
 
@@ -317,12 +467,22 @@ start:
   .binary   f82a
 
   .align    4
+  .data     0x8CD31910
+  .data     2
+  .binary   f82a
+
+  .align    4
   .data     0x8CD71910
   .data     2
   .binary   f82a
 
   .align    4
   .data     0x8CD2247C
+  .data     2
+  .binary   6400
+
+  .align    4
+  .data     0x8CD31A9C
   .data     2
   .binary   6400
 
@@ -337,12 +497,22 @@ start:
   .binary   3c00
 
   .align    4
+  .data     0x8CD31AC0
+  .data     2
+  .binary   3c00
+
+  .align    4
   .data     0x8CD71AC0
   .data     2
   .binary   3c00
 
   .align    4
   .data     0x8CD224C4
+  .data     2
+  .binary   2800
+
+  .align    4
+  .data     0x8CD31AE4
   .data     2
   .binary   2800
 
@@ -357,12 +527,22 @@ start:
   .binary   2800
 
   .align    4
+  .data     0x8CD31B08
+  .data     2
+  .binary   2800
+
+  .align    4
   .data     0x8CD71B08
   .data     2
   .binary   2800
 
   .align    4
   .data     0x8CD2250C
+  .data     2
+  .binary   dc05
+
+  .align    4
+  .data     0x8CD31B2C
   .data     2
   .binary   dc05
 
@@ -377,12 +557,22 @@ start:
   .binary   3200
 
   .align    4
+  .data     0x8CD31B50
+  .data     2
+  .binary   3200
+
+  .align    4
   .data     0x8CD71B50
   .data     2
   .binary   3200
 
   .align    4
   .data     0x8CD22578
+  .data     2
+  .binary   983a
+
+  .align    4
+  .data     0x8CD31B98
   .data     2
   .binary   983a
 
@@ -397,12 +587,22 @@ start:
   .binary   3200
 
   .align    4
+  .data     0x8CD31BE0
+  .data     2
+  .binary   3200
+
+  .align    4
   .data     0x8CD71BE0
   .data     2
   .binary   3200
 
   .align    4
   .data     0x8CD227DC
+  .data     2
+  .binary   3200
+
+  .align    4
+  .data     0x8CD31DFC
   .data     2
   .binary   3200
 
@@ -417,12 +617,22 @@ start:
   .binary   6400
 
   .align    4
+  .data     0x8CD31E20
+  .data     2
+  .binary   6400
+
+  .align    4
   .data     0x8CD71E20
   .data     2
   .binary   6400
 
   .align    4
   .data     0x8CD22824
+  .data     2
+  .binary   e803
+
+  .align    4
+  .data     0x8CD31E44
   .data     2
   .binary   e803
 
@@ -437,12 +647,22 @@ start:
   .binary   3200
 
   .align    4
+  .data     0x8CD31E68
+  .data     2
+  .binary   3200
+
+  .align    4
   .data     0x8CD71E68
   .data     2
   .binary   3200
 
   .align    4
   .data     0x8CD2286C
+  .data     2
+  .binary   3c00
+
+  .align    4
+  .data     0x8CD31E8C
   .data     2
   .binary   3c00
 
@@ -457,12 +677,22 @@ start:
   .binary   4600
 
   .align    4
+  .data     0x8CD31EB0
+  .data     2
+  .binary   4600
+
+  .align    4
   .data     0x8CD71EB0
   .data     2
   .binary   4600
 
   .align    4
   .data     0x8CD228B4
+  .data     2
+  .binary   aa00
+
+  .align    4
+  .data     0x8CD31ED4
   .data     2
   .binary   aa00
 
@@ -477,12 +707,22 @@ start:
   .binary   6400
 
   .align    4
+  .data     0x8CD31EF8
+  .data     2
+  .binary   6400
+
+  .align    4
   .data     0x8CD71EF8
   .data     2
   .binary   6400
 
   .align    4
   .data     0x8CD228FC
+  .data     2
+  .binary   7800
+
+  .align    4
+  .data     0x8CD31F1C
   .data     2
   .binary   7800
 
@@ -497,12 +737,22 @@ start:
   .binary   8c00
 
   .align    4
+  .data     0x8CD31F40
+  .data     2
+  .binary   8c00
+
+  .align    4
   .data     0x8CD71F40
   .data     2
   .binary   8c00
 
   .align    4
   .data     0x8CD22944
+  .data     2
+  .binary   fa00
+
+  .align    4
+  .data     0x8CD31F64
   .data     2
   .binary   fa00
 
@@ -517,12 +767,22 @@ start:
   .binary   dc00
 
   .align    4
+  .data     0x8CD31F88
+  .data     2
+  .binary   dc00
+
+  .align    4
   .data     0x8CD71F88
   .data     2
   .binary   dc00
 
   .align    4
   .data     0x8CD2298C
+  .data     2
+  .binary   f000
+
+  .align    4
+  .data     0x8CD31FAC
   .data     2
   .binary   f000
 
@@ -537,12 +797,22 @@ start:
   .binary   0401
 
   .align    4
+  .data     0x8CD31FD0
+  .data     2
+  .binary   0401
+
+  .align    4
   .data     0x8CD71FD0
   .data     2
   .binary   0401
 
   .align    4
   .data     0x8CD22B3C
+  .data     2
+  .binary   6801
+
+  .align    4
+  .data     0x8CD3215C
   .data     2
   .binary   6801
 
@@ -557,12 +827,22 @@ start:
   .binary   ae01
 
   .align    4
+  .data     0x8CD32180
+  .data     2
+  .binary   ae01
+
+  .align    4
   .data     0x8CD72180
   .data     2
   .binary   ae01
 
   .align    4
   .data     0x8CD22B84
+  .data     2
+  .binary   a401
+
+  .align    4
+  .data     0x8CD321A4
   .data     2
   .binary   a401
 
@@ -577,12 +857,22 @@ start:
   .binary   c201
 
   .align    4
+  .data     0x8CD321C8
+  .data     2
+  .binary   c201
+
+  .align    4
   .data     0x8CD721C8
   .data     2
   .binary   c201
 
   .align    4
   .data     0x8CD22BCC
+  .data     2
+  .binary   ea01
+
+  .align    4
+  .data     0x8CD321EC
   .data     2
   .binary   ea01
 
@@ -597,12 +887,22 @@ start:
   .binary   1e0a
 
   .align    4
+  .data     0x8CD32210
+  .data     2
+  .binary   1e0a
+
+  .align    4
   .data     0x8CD72210
   .data     2
   .binary   1e0a
 
   .align    4
   .data     0x8CD22C14
+  .data     2
+  .binary   8002
+
+  .align    4
+  .data     0x8CD32234
   .data     2
   .binary   8002
 
@@ -617,12 +917,22 @@ start:
   .binary   4402
 
   .align    4
+  .data     0x8CD32258
+  .data     2
+  .binary   4402
+
+  .align    4
   .data     0x8CD72258
   .data     2
   .binary   4402
 
   .align    4
   .data     0x8CD22C5C
+  .data     2
+  .binary   4402
+
+  .align    4
+  .data     0x8CD3227C
   .data     2
   .binary   4402
 
@@ -637,12 +947,22 @@ start:
   .binary   5802
 
   .align    4
+  .data     0x8CD322A0
+  .data     2
+  .binary   5802
+
+  .align    4
   .data     0x8CD722A0
   .data     2
   .binary   5802
 
   .align    4
   .data     0x8CD22CA4
+  .data     2
+  .binary   bc02
+
+  .align    4
+  .data     0x8CD322C4
   .data     2
   .binary   bc02
 
@@ -657,12 +977,22 @@ start:
   .binary   9001
 
   .align    4
+  .data     0x8CD322E8
+  .data     2
+  .binary   9001
+
+  .align    4
   .data     0x8CD722E8
   .data     2
   .binary   9001
 
   .align    4
   .data     0x8CD22CEC
+  .data     2
+  .binary   9001
+
+  .align    4
+  .data     0x8CD3230C
   .data     2
   .binary   9001
 
@@ -677,12 +1007,22 @@ start:
   .binary   7a03
 
   .align    4
+  .data     0x8CD32330
+  .data     2
+  .binary   7a03
+
+  .align    4
   .data     0x8CD72330
   .data     2
   .binary   7a03
 
   .align    4
   .data     0x8CD22D34
+  .data     2
+  .binary   f802
+
+  .align    4
+  .data     0x8CD32354
   .data     2
   .binary   f802
 
@@ -697,12 +1037,22 @@ start:
   .binary   a861
 
   .align    4
+  .data     0x8CD32378
+  .data     2
+  .binary   a861
+
+  .align    4
   .data     0x8CD72378
   .data     2
   .binary   a861
 
   .align    4
   .data     0x8CD22D7C
+  .data     2
+  .binary   fa00
+
+  .align    4
+  .data     0x8CD3239C
   .data     2
   .binary   fa00
 
@@ -717,12 +1067,22 @@ start:
   .binary   2800
 
   .align    4
+  .data     0x8CD323C0
+  .data     2
+  .binary   2800
+
+  .align    4
   .data     0x8CD723C0
   .data     2
   .binary   2800
 
   .align    4
   .data     0x8CD22DC4
+  .data     2
+  .binary   204e
+
+  .align    4
+  .data     0x8CD323E4
   .data     2
   .binary   204e
 
@@ -737,12 +1097,22 @@ start:
   .binary   8002
 
   .align    4
+  .data     0x8CD32408
+  .data     2
+  .binary   8002
+
+  .align    4
   .data     0x8CD72408
   .data     2
   .binary   8002
 
   .align    4
   .data     0x8CD22E0C
+  .data     2
+  .binary   8813
+
+  .align    4
+  .data     0x8CD3242C
   .data     2
   .binary   8813
 
@@ -757,12 +1127,22 @@ start:
   .binary   9001
 
   .align    4
+  .data     0x8CD324BC
+  .data     2
+  .binary   9001
+
+  .align    4
   .data     0x8CD724BC
   .data     2
   .binary   9001
 
   .align    4
   .data     0x8CD22EC0
+  .data     2
+  .binary   3007
+
+  .align    4
+  .data     0x8CD324E0
   .data     2
   .binary   3007
 
@@ -777,12 +1157,22 @@ start:
   .binary   3a02
 
   .align    4
+  .data     0x8CD32504
+  .data     2
+  .binary   3a02
+
+  .align    4
   .data     0x8CD72504
   .data     2
   .binary   3a02
 
   .align    4
   .data     0x8CD22F08
+  .data     2
+  .binary   6e00
+
+  .align    4
+  .data     0x8CD32528
   .data     2
   .binary   6e00
 
@@ -797,12 +1187,22 @@ start:
   .binary   6202
 
   .align    4
+  .data     0x8CD3254C
+  .data     2
+  .binary   6202
+
+  .align    4
   .data     0x8CD7254C
   .data     2
   .binary   6202
 
   .align    4
   .data     0x8CD22F50
+  .data     2
+  .binary   9e02
+
+  .align    4
+  .data     0x8CD32570
   .data     2
   .binary   9e02
 
@@ -817,12 +1217,22 @@ start:
   .binary   8002
 
   .align    4
+  .data     0x8CD32594
+  .data     2
+  .binary   8002
+
+  .align    4
   .data     0x8CD72594
   .data     2
   .binary   8002
 
   .align    4
   .data     0x8CD22F98
+  .data     2
+  .binary   bc02
+
+  .align    4
+  .data     0x8CD325B8
   .data     2
   .binary   bc02
 
@@ -837,12 +1247,22 @@ start:
   .binary   ae01
 
   .align    4
+  .data     0x8CD325DC
+  .data     2
+  .binary   ae01
+
+  .align    4
   .data     0x8CD725DC
   .data     2
   .binary   ae01
 
   .align    4
   .data     0x8CD23070
+  .data     2
+  .binary   3075
+
+  .align    4
+  .data     0x8CD32690
   .data     2
   .binary   3075
 
@@ -857,12 +1277,22 @@ start:
   .binary   ea01
 
   .align    4
+  .data     0x8CD3281C
+  .data     2
+  .binary   ea01
+
+  .align    4
   .data     0x8CD7281C
   .data     2
   .binary   ea01
 
   .align    4
   .data     0x8CD23220
+  .data     2
+  .binary   0401
+
+  .align    4
+  .data     0x8CD32840
   .data     2
   .binary   0401
 
@@ -877,12 +1307,22 @@ start:
   .binary   e600
 
   .align    4
+  .data     0x8CD32864
+  .data     2
+  .binary   e600
+
+  .align    4
   .data     0x8CD72864
   .data     2
   .binary   e600
 
   .align    4
   .data     0x8CD23268
+  .data     2
+  .binary   e600
+
+  .align    4
+  .data     0x8CD32888
   .data     2
   .binary   e600
 
@@ -897,12 +1337,22 @@ start:
   .binary   1e0a
 
   .align    4
+  .data     0x8CD328AC
+  .data     2
+  .binary   1e0a
+
+  .align    4
   .data     0x8CD728AC
   .data     2
   .binary   1e0a
 
   .align    4
   .data     0x8CD232B0
+  .data     2
+  .binary   3200
+
+  .align    4
+  .data     0x8CD328D0
   .data     2
   .binary   3200
 
@@ -917,12 +1367,22 @@ start:
   .binary   b888
 
   .align    4
+  .data     0x8CD3293C
+  .data     2
+  .binary   b888
+
+  .align    4
   .data     0x8CD7293C
   .data     2
   .binary   b888
 
   .align    4
   .data     0x8CD23340
+  .data     2
+  .binary   3200
+
+  .align    4
+  .data     0x8CD32960
   .data     2
   .binary   3200
 
@@ -937,12 +1397,22 @@ start:
   .binary   3200
 
   .align    4
+  .data     0x8CD32B7C
+  .data     2
+  .binary   3200
+
+  .align    4
   .data     0x8CD72B7C
   .data     2
   .binary   3200
 
   .align    4
   .data     0x8CD23580
+  .data     2
+  .binary   ea01
+
+  .align    4
+  .data     0x8CD32BA0
   .data     2
   .binary   ea01
 
@@ -957,12 +1427,22 @@ start:
   .binary   3007
 
   .align    4
+  .data     0x8CD32BC4
+  .data     2
+  .binary   3007
+
+  .align    4
   .data     0x8CD72BC4
   .data     2
   .binary   3007
 
   .align    4
   .data     0x8CD235C8
+  .data     2
+  .binary   a401
+
+  .align    4
+  .data     0x8CD32BE8
   .data     2
   .binary   a401
 
@@ -977,12 +1457,22 @@ start:
   .binary   ae01
 
   .align    4
+  .data     0x8CD32C0C
+  .data     2
+  .binary   ae01
+
+  .align    4
   .data     0x8CD72C0C
   .data     2
   .binary   ae01
 
   .align    4
   .data     0x8CD23610
+  .data     2
+  .binary   c201
+
+  .align    4
+  .data     0x8CD32C30
   .data     2
   .binary   c201
 
@@ -997,12 +1487,22 @@ start:
   .binary   5802
 
   .align    4
+  .data     0x8CD32C54
+  .data     2
+  .binary   5802
+
+  .align    4
   .data     0x8CD72C54
   .data     2
   .binary   5802
 
   .align    4
   .data     0x8CD23658
+  .data     2
+  .binary   ea01
+
+  .align    4
+  .data     0x8CD32C78
   .data     2
   .binary   ea01
 
@@ -1017,12 +1517,22 @@ start:
   .binary   0802
 
   .align    4
+  .data     0x8CD32C9C
+  .data     2
+  .binary   0802
+
+  .align    4
   .data     0x8CD72C9C
   .data     2
   .binary   0802
 
   .align    4
   .data     0x8CD236A0
+  .data     2
+  .binary   2602
+
+  .align    4
+  .data     0x8CD32CC0
   .data     2
   .binary   2602
 
@@ -1037,12 +1547,22 @@ start:
   .binary   d002
 
   .align    4
+  .data     0x8CD32CE4
+  .data     2
+  .binary   d002
+
+  .align    4
   .data     0x8CD72CE4
   .data     2
   .binary   d002
 
   .align    4
   .data     0x8CD236E8
+  .data     2
+  .binary   9e02
+
+  .align    4
+  .data     0x8CD32D08
   .data     2
   .binary   9e02
 
@@ -1057,12 +1577,22 @@ start:
   .binary   bc02
 
   .align    4
+  .data     0x8CD32D2C
+  .data     2
+  .binary   bc02
+
+  .align    4
   .data     0x8CD72D2C
   .data     2
   .binary   bc02
 
   .align    4
   .data     0x8CD23730
+  .data     2
+  .binary   da02
+
+  .align    4
+  .data     0x8CD32D50
   .data     2
   .binary   da02
 
@@ -1077,12 +1607,22 @@ start:
   .binary   3403
 
   .align    4
+  .data     0x8CD32EDC
+  .data     2
+  .binary   3403
+
+  .align    4
   .data     0x8CD72EDC
   .data     2
   .binary   3403
 
   .align    4
   .data     0x8CD238E0
+  .data     2
+  .binary   9803
+
+  .align    4
+  .data     0x8CD32F00
   .data     2
   .binary   9803
 
@@ -1097,12 +1637,22 @@ start:
   .binary   8403
 
   .align    4
+  .data     0x8CD32F24
+  .data     2
+  .binary   8403
+
+  .align    4
   .data     0x8CD72F24
   .data     2
   .binary   8403
 
   .align    4
   .data     0x8CD23928
+  .data     2
+  .binary   ac03
+
+  .align    4
+  .data     0x8CD32F48
   .data     2
   .binary   ac03
 
@@ -1117,12 +1667,22 @@ start:
   .binary   e803
 
   .align    4
+  .data     0x8CD32F6C
+  .data     2
+  .binary   e803
+
+  .align    4
   .data     0x8CD72F6C
   .data     2
   .binary   e803
 
   .align    4
   .data     0x8CD23970
+  .data     2
+  .binary   d80e
+
+  .align    4
+  .data     0x8CD32F90
   .data     2
   .binary   d80e
 
@@ -1137,12 +1697,22 @@ start:
   .binary   b004
 
   .align    4
+  .data     0x8CD32FB4
+  .data     2
+  .binary   b004
+
+  .align    4
   .data     0x8CD72FB4
   .data     2
   .binary   b004
 
   .align    4
   .data     0x8CD239B8
+  .data     2
+  .binary   6004
+
+  .align    4
+  .data     0x8CD32FD8
   .data     2
   .binary   6004
 
@@ -1157,12 +1727,22 @@ start:
   .binary   6004
 
   .align    4
+  .data     0x8CD32FFC
+  .data     2
+  .binary   6004
+
+  .align    4
   .data     0x8CD72FFC
   .data     2
   .binary   6004
 
   .align    4
   .data     0x8CD23A00
+  .data     2
+  .binary   7404
+
+  .align    4
+  .data     0x8CD33020
   .data     2
   .binary   7404
 
@@ -1177,12 +1757,22 @@ start:
   .binary   0005
 
   .align    4
+  .data     0x8CD33044
+  .data     2
+  .binary   0005
+
+  .align    4
   .data     0x8CD73044
   .data     2
   .binary   0005
 
   .align    4
   .data     0x8CD23A48
+  .data     2
+  .binary   7003
+
+  .align    4
+  .data     0x8CD33068
   .data     2
   .binary   7003
 
@@ -1197,12 +1787,22 @@ start:
   .binary   7003
 
   .align    4
+  .data     0x8CD3308C
+  .data     2
+  .binary   7003
+
+  .align    4
   .data     0x8CD7308C
   .data     2
   .binary   7003
 
   .align    4
   .data     0x8CD23A90
+  .data     2
+  .binary   7805
+
+  .align    4
+  .data     0x8CD330B0
   .data     2
   .binary   7805
 
@@ -1217,12 +1817,22 @@ start:
   .binary   5005
 
   .align    4
+  .data     0x8CD330D4
+  .data     2
+  .binary   5005
+
+  .align    4
   .data     0x8CD730D4
   .data     2
   .binary   5005
 
   .align    4
   .data     0x8CD23AD8
+  .data     2
+  .binary   98b7
+
+  .align    4
+  .data     0x8CD330F8
   .data     2
   .binary   98b7
 
@@ -1237,12 +1847,22 @@ start:
   .binary   2c01
 
   .align    4
+  .data     0x8CD3311C
+  .data     2
+  .binary   2c01
+
+  .align    4
   .data     0x8CD7311C
   .data     2
   .binary   2c01
 
   .align    4
   .data     0x8CD23B20
+  .data     2
+  .binary   5000
+
+  .align    4
+  .data     0x8CD33140
   .data     2
   .binary   5000
 
@@ -1257,12 +1877,22 @@ start:
   .binary   28a0
 
   .align    4
+  .data     0x8CD33164
+  .data     2
+  .binary   28a0
+
+  .align    4
   .data     0x8CD73164
   .data     2
   .binary   28a0
 
   .align    4
   .data     0x8CD23B68
+  .data     2
+  .binary   b004
+
+  .align    4
+  .data     0x8CD33188
   .data     2
   .binary   b004
 
@@ -1277,12 +1907,22 @@ start:
   .binary   8813
 
   .align    4
+  .data     0x8CD331AC
+  .data     2
+  .binary   8813
+
+  .align    4
   .data     0x8CD731AC
   .data     2
   .binary   8813
 
   .align    4
   .data     0x8CD23C1C
+  .data     2
+  .binary   7003
+
+  .align    4
+  .data     0x8CD3323C
   .data     2
   .binary   7003
 
@@ -1297,12 +1937,22 @@ start:
   .binary   f00a
 
   .align    4
+  .data     0x8CD33260
+  .data     2
+  .binary   f00a
+
+  .align    4
   .data     0x8CD73260
   .data     2
   .binary   f00a
 
   .align    4
   .data     0x8CD23C64
+  .data     2
+  .binary   4c04
+
+  .align    4
+  .data     0x8CD33284
   .data     2
   .binary   4c04
 
@@ -1317,12 +1967,22 @@ start:
   .binary   dc00
 
   .align    4
+  .data     0x8CD332A8
+  .data     2
+  .binary   dc00
+
+  .align    4
   .data     0x8CD732A8
   .data     2
   .binary   dc00
 
   .align    4
   .data     0x8CD23CAC
+  .data     2
+  .binary   8804
+
+  .align    4
+  .data     0x8CD332CC
   .data     2
   .binary   8804
 
@@ -1337,12 +1997,22 @@ start:
   .binary   d804
 
   .align    4
+  .data     0x8CD332F0
+  .data     2
+  .binary   d804
+
+  .align    4
   .data     0x8CD732F0
   .data     2
   .binary   d804
 
   .align    4
   .data     0x8CD23CF4
+  .data     2
+  .binary   b004
+
+  .align    4
+  .data     0x8CD33314
   .data     2
   .binary   b004
 
@@ -1357,12 +2027,22 @@ start:
   .binary   0005
 
   .align    4
+  .data     0x8CD33338
+  .data     2
+  .binary   0005
+
+  .align    4
   .data     0x8CD73338
   .data     2
   .binary   0005
 
   .align    4
   .data     0x8CD23D3C
+  .data     2
+  .binary   9803
+
+  .align    4
+  .data     0x8CD3335C
   .data     2
   .binary   9803
 
@@ -1377,12 +2057,22 @@ start:
   .binary   08cf
 
   .align    4
+  .data     0x8CD33410
+  .data     2
+  .binary   08cf
+
+  .align    4
   .data     0x8CD73410
   .data     2
   .binary   08cf
 
   .align    4
   .data     0x8CD23F7C
+  .data     2
+  .binary   e803
+
+  .align    4
+  .data     0x8CD3359C
   .data     2
   .binary   e803
 
@@ -1397,12 +2087,22 @@ start:
   .binary   0802
 
   .align    4
+  .data     0x8CD335C0
+  .data     2
+  .binary   0802
+
+  .align    4
   .data     0x8CD735C0
   .data     2
   .binary   0802
 
   .align    4
   .data     0x8CD23FC4
+  .data     2
+  .binary   e001
+
+  .align    4
+  .data     0x8CD335E4
   .data     2
   .binary   e001
 
@@ -1417,12 +2117,22 @@ start:
   .binary   e001
 
   .align    4
+  .data     0x8CD33608
+  .data     2
+  .binary   e001
+
+  .align    4
   .data     0x8CD73608
   .data     2
   .binary   e001
 
   .align    4
   .data     0x8CD2400C
+  .data     2
+  .binary   d80e
+
+  .align    4
+  .data     0x8CD3362C
   .data     2
   .binary   d80e
 
@@ -1437,12 +2147,22 @@ start:
   .binary   5a00
 
   .align    4
+  .data     0x8CD33650
+  .data     2
+  .binary   5a00
+
+  .align    4
   .data     0x8CD73650
   .data     2
   .binary   5a00
 
   .align    4
   .data     0x8CD2409C
+  .data     2
+  .binary   78e6
+
+  .align    4
+  .data     0x8CD336BC
   .data     2
   .binary   78e6
 
@@ -1457,12 +2177,22 @@ start:
   .binary   5a00
 
   .align    4
+  .data     0x8CD336E0
+  .data     2
+  .binary   5a00
+
+  .align    4
   .data     0x8CD736E0
   .data     2
   .binary   5a00
 
   .align    4
   .data     0x8CD242DC
+  .data     2
+  .binary   3200
+
+  .align    4
+  .data     0x8CD338FC
   .data     2
   .binary   3200
 
@@ -1477,12 +2207,22 @@ start:
   .binary   e803
 
   .align    4
+  .data     0x8CD33920
+  .data     2
+  .binary   e803
+
+  .align    4
   .data     0x8CD73920
   .data     2
   .binary   e803
 
   .align    4
   .data     0x8CD24324
+  .data     2
+  .binary   f00a
+
+  .align    4
+  .data     0x8CD33944
   .data     2
   .binary   f00a
 
@@ -1497,12 +2237,22 @@ start:
   .binary   8403
 
   .align    4
+  .data     0x8CD33968
+  .data     2
+  .binary   8403
+
+  .align    4
   .data     0x8CD73968
   .data     2
   .binary   8403
 
   .align    4
   .data     0x8CD2436C
+  .data     2
+  .binary   9803
+
+  .align    4
+  .data     0x8CD3398C
   .data     2
   .binary   9803
 
@@ -1517,12 +2267,22 @@ start:
   .binary   ac03
 
   .align    4
+  .data     0x8CD339B0
+  .data     2
+  .binary   ac03
+
+  .align    4
   .data     0x8CD739B0
   .data     2
   .binary   ac03
 
   .align    4
   .data     0x8CD243B4
+  .data     2
+  .binary   7404
+
+  .align    4
+  .data     0x8CD339D4
   .data     2
   .binary   7404
 
@@ -1537,12 +2297,22 @@ start:
   .binary   e803
 
   .align    4
+  .data     0x8CD339F8
+  .data     2
+  .binary   e803
+
+  .align    4
   .data     0x8CD739F8
   .data     2
   .binary   e803
 
   .align    4
   .data     0x8CD243FC
+  .data     2
+  .binary   1004
+
+  .align    4
+  .data     0x8CD33A1C
   .data     2
   .binary   1004
 
@@ -1557,12 +2327,22 @@ start:
   .binary   3804
 
   .align    4
+  .data     0x8CD33A40
+  .data     2
+  .binary   3804
+
+  .align    4
   .data     0x8CD73A40
   .data     2
   .binary   3804
 
   .align    4
   .data     0x8CD24444
+  .data     2
+  .binary   1405
+
+  .align    4
+  .data     0x8CD33A64
   .data     2
   .binary   1405
 
@@ -1577,12 +2357,22 @@ start:
   .binary   d804
 
   .align    4
+  .data     0x8CD33A88
+  .data     2
+  .binary   d804
+
+  .align    4
   .data     0x8CD73A88
   .data     2
   .binary   d804
 
   .align    4
   .data     0x8CD2448C
+  .data     2
+  .binary   0005
+
+  .align    4
+  .data     0x8CD33AAC
   .data     2
   .binary   0005
 
@@ -1597,12 +2387,22 @@ start:
   .binary   2805
 
   .align    4
+  .data     0x8CD33AD0
+  .data     2
+  .binary   2805
+
+  .align    4
   .data     0x8CD73AD0
   .data     2
   .binary   2805
 
   .align    4
   .data     0x8CD2463C
+  .data     2
+  .binary   7805
+
+  .align    4
+  .data     0x8CD33C5C
   .data     2
   .binary   7805
 
@@ -1617,12 +2417,22 @@ start:
   .binary   500a
 
   .align    4
+  .data     0x8CD33C80
+  .data     2
+  .binary   500a
+
+  .align    4
   .data     0x8CD73C80
   .data     2
   .binary   500a
 
   .align    4
   .data     0x8CD24684
+  .data     2
+  .binary   280a
+
+  .align    4
+  .data     0x8CD33CA4
   .data     2
   .binary   280a
 
@@ -1637,12 +2447,22 @@ start:
   .binary   780a
 
   .align    4
+  .data     0x8CD33CC8
+  .data     2
+  .binary   780a
+
+  .align    4
   .data     0x8CD73CC8
   .data     2
   .binary   780a
 
   .align    4
   .data     0x8CD246CC
+  .data     2
+  .binary   f00a
+
+  .align    4
+  .data     0x8CD33CEC
   .data     2
   .binary   f00a
 
@@ -1657,12 +2477,22 @@ start:
   .binary   d020
 
   .align    4
+  .data     0x8CD33D10
+  .data     2
+  .binary   d020
+
+  .align    4
   .data     0x8CD73D10
   .data     2
   .binary   d020
 
   .align    4
   .data     0x8CD24714
+  .data     2
+  .binary   800c
+
+  .align    4
+  .data     0x8CD33D34
   .data     2
   .binary   800c
 
@@ -1677,12 +2507,22 @@ start:
   .binary   e00b
 
   .align    4
+  .data     0x8CD33D58
+  .data     2
+  .binary   e00b
+
+  .align    4
   .data     0x8CD73D58
   .data     2
   .binary   e00b
 
   .align    4
   .data     0x8CD2475C
+  .data     2
+  .binary   e00b
+
+  .align    4
+  .data     0x8CD33D7C
   .data     2
   .binary   e00b
 
@@ -1697,12 +2537,22 @@ start:
   .binary   080c
 
   .align    4
+  .data     0x8CD33DA0
+  .data     2
+  .binary   080c
+
+  .align    4
   .data     0x8CD73DA0
   .data     2
   .binary   080c
 
   .align    4
   .data     0x8CD247A4
+  .data     2
+  .binary   200d
+
+  .align    4
+  .data     0x8CD33DC4
   .data     2
   .binary   200d
 
@@ -1717,12 +2567,22 @@ start:
   .binary   e803
 
   .align    4
+  .data     0x8CD33DE8
+  .data     2
+  .binary   e803
+
+  .align    4
   .data     0x8CD73DE8
   .data     2
   .binary   e803
 
   .align    4
   .data     0x8CD247EC
+  .data     2
+  .binary   e803
+
+  .align    4
+  .data     0x8CD33E0C
   .data     2
   .binary   e803
 
@@ -1737,12 +2597,22 @@ start:
   .binary   100e
 
   .align    4
+  .data     0x8CD33E30
+  .data     2
+  .binary   100e
+
+  .align    4
   .data     0x8CD73E30
   .data     2
   .binary   100e
 
   .align    4
   .data     0x8CD24834
+  .data     2
+  .binary   c00d
+
+  .align    4
+  .data     0x8CD33E54
   .data     2
   .binary   c00d
 
@@ -1757,12 +2627,22 @@ start:
   .binary   ffff
 
   .align    4
+  .data     0x8CD33E78
+  .data     2
+  .binary   ffff
+
+  .align    4
   .data     0x8CD73E78
   .data     2
   .binary   ffff
 
   .align    4
   .data     0x8CD2487C
+  .data     2
+  .binary   5802
+
+  .align    4
+  .data     0x8CD33E9C
   .data     2
   .binary   5802
 
@@ -1777,12 +2657,22 @@ start:
   .binary   a000
 
   .align    4
+  .data     0x8CD33EC0
+  .data     2
+  .binary   a000
+
+  .align    4
   .data     0x8CD73EC0
   .data     2
   .binary   a000
 
   .align    4
   .data     0x8CD248C4
+  .data     2
+  .binary   e8fd
+
+  .align    4
+  .data     0x8CD33EE4
   .data     2
   .binary   e8fd
 
@@ -1797,12 +2687,22 @@ start:
   .binary   800c
 
   .align    4
+  .data     0x8CD33F08
+  .data     2
+  .binary   800c
+
+  .align    4
   .data     0x8CD73F08
   .data     2
   .binary   800c
 
   .align    4
   .data     0x8CD2490C
+  .data     2
+  .binary   8813
+
+  .align    4
+  .data     0x8CD33F2C
   .data     2
   .binary   8813
 
@@ -1817,12 +2717,22 @@ start:
   .binary   000a
 
   .align    4
+  .data     0x8CD33FBC
+  .data     2
+  .binary   000a
+
+  .align    4
   .data     0x8CD73FBC
   .data     2
   .binary   000a
 
   .align    4
   .data     0x8CD249C0
+  .data     2
+  .binary   0019
+
+  .align    4
+  .data     0x8CD33FE0
   .data     2
   .binary   0019
 
@@ -1837,12 +2747,22 @@ start:
   .binary   b80b
 
   .align    4
+  .data     0x8CD34004
+  .data     2
+  .binary   b80b
+
+  .align    4
   .data     0x8CD74004
   .data     2
   .binary   b80b
 
   .align    4
   .data     0x8CD24A08
+  .data     2
+  .binary   f401
+
+  .align    4
+  .data     0x8CD34028
   .data     2
   .binary   f401
 
@@ -1857,12 +2777,22 @@ start:
   .binary   300c
 
   .align    4
+  .data     0x8CD3404C
+  .data     2
+  .binary   300c
+
+  .align    4
   .data     0x8CD7404C
   .data     2
   .binary   300c
 
   .align    4
   .data     0x8CD24A50
+  .data     2
+  .binary   d00c
+
+  .align    4
+  .data     0x8CD34070
   .data     2
   .binary   d00c
 
@@ -1877,12 +2807,22 @@ start:
   .binary   800c
 
   .align    4
+  .data     0x8CD34094
+  .data     2
+  .binary   800c
+
+  .align    4
   .data     0x8CD74094
   .data     2
   .binary   800c
 
   .align    4
   .data     0x8CD24A98
+  .data     2
+  .binary   200d
+
+  .align    4
+  .data     0x8CD340B8
   .data     2
   .binary   200d
 
@@ -1897,12 +2837,22 @@ start:
   .binary   500a
 
   .align    4
+  .data     0x8CD340DC
+  .data     2
+  .binary   500a
+
+  .align    4
   .data     0x8CD740DC
   .data     2
   .binary   500a
 
   .align    4
   .data     0x8CD24B70
+  .data     2
+  .binary   ffff
+
+  .align    4
+  .data     0x8CD34190
   .data     2
   .binary   ffff
 
@@ -1917,12 +2867,22 @@ start:
   .binary   f00a
 
   .align    4
+  .data     0x8CD3431C
+  .data     2
+  .binary   f00a
+
+  .align    4
   .data     0x8CD7431C
   .data     2
   .binary   f00a
 
   .align    4
   .data     0x8CD24D20
+  .data     2
+  .binary   3007
+
+  .align    4
+  .data     0x8CD34340
   .data     2
   .binary   3007
 
@@ -1937,12 +2897,22 @@ start:
   .binary   e006
 
   .align    4
+  .data     0x8CD34364
+  .data     2
+  .binary   e006
+
+  .align    4
   .data     0x8CD74364
   .data     2
   .binary   e006
 
   .align    4
   .data     0x8CD24D68
+  .data     2
+  .binary   e006
+
+  .align    4
+  .data     0x8CD34388
   .data     2
   .binary   e006
 
@@ -1957,12 +2927,22 @@ start:
   .binary   d020
 
   .align    4
+  .data     0x8CD343AC
+  .data     2
+  .binary   d020
+
+  .align    4
   .data     0x8CD743AC
   .data     2
   .binary   d020
 
   .align    4
   .data     0x8CD24DB0
+  .data     2
+  .binary   c800
+
+  .align    4
+  .data     0x8CD343D0
   .data     2
   .binary   c800
 
@@ -1977,12 +2957,22 @@ start:
   .binary   ffff
 
   .align    4
+  .data     0x8CD3443C
+  .data     2
+  .binary   ffff
+
+  .align    4
   .data     0x8CD7443C
   .data     2
   .binary   ffff
 
   .align    4
   .data     0x8CD24E40
+  .data     2
+  .binary   c800
+
+  .align    4
+  .data     0x8CD34460
   .data     2
   .binary   c800
 
@@ -1997,12 +2987,22 @@ start:
   .binary   3200
 
   .align    4
+  .data     0x8CD3467C
+  .data     2
+  .binary   3200
+
+  .align    4
   .data     0x8CD7467C
   .data     2
   .binary   3200
 
   .align    4
   .data     0x8CD25080
+  .data     2
+  .binary   f00a
+
+  .align    4
+  .data     0x8CD346A0
   .data     2
   .binary   f00a
 
@@ -2017,12 +3017,22 @@ start:
   .binary   0019
 
   .align    4
+  .data     0x8CD346C4
+  .data     2
+  .binary   0019
+
+  .align    4
   .data     0x8CD746C4
   .data     2
   .binary   0019
 
   .align    4
   .data     0x8CD250C8
+  .data     2
+  .binary   280a
+
+  .align    4
+  .data     0x8CD346E8
   .data     2
   .binary   280a
 
@@ -2037,12 +3047,22 @@ start:
   .binary   500a
 
   .align    4
+  .data     0x8CD3470C
+  .data     2
+  .binary   500a
+
+  .align    4
   .data     0x8CD7470C
   .data     2
   .binary   500a
 
   .align    4
   .data     0x8CD25110
+  .data     2
+  .binary   780a
+
+  .align    4
+  .data     0x8CD34730
   .data     2
   .binary   780a
 
@@ -2057,12 +3077,22 @@ start:
   .binary   080c
 
   .align    4
+  .data     0x8CD34754
+  .data     2
+  .binary   080c
+
+  .align    4
   .data     0x8CD74754
   .data     2
   .binary   080c
 
   .align    4
   .data     0x8CD25158
+  .data     2
+  .binary   f00a
+
+  .align    4
+  .data     0x8CD34778
   .data     2
   .binary   f00a
 
@@ -2077,12 +3107,22 @@ start:
   .binary   400b
 
   .align    4
+  .data     0x8CD3479C
+  .data     2
+  .binary   400b
+
+  .align    4
   .data     0x8CD7479C
   .data     2
   .binary   400b
 
   .align    4
   .data     0x8CD251A0
+  .data     2
+  .binary   900b
+
+  .align    4
+  .data     0x8CD347C0
   .data     2
   .binary   900b
 
@@ -2097,12 +3137,22 @@ start:
   .binary   480d
 
   .align    4
+  .data     0x8CD347E4
+  .data     2
+  .binary   480d
+
+  .align    4
   .data     0x8CD747E4
   .data     2
   .binary   480d
 
   .align    4
   .data     0x8CD251E8
+  .data     2
+  .binary   d00c
+
+  .align    4
+  .data     0x8CD34808
   .data     2
   .binary   d00c
 
@@ -2117,12 +3167,22 @@ start:
   .binary   200d
 
   .align    4
+  .data     0x8CD3482C
+  .data     2
+  .binary   200d
+
+  .align    4
   .data     0x8CD7482C
   .data     2
   .binary   200d
 
   .align    4
   .data     0x8CD25230
+  .data     2
+  .binary   700d
+
+  .align    4
+  .data     0x8CD34850
   .data     2
   .binary   700d
 
