@@ -3552,7 +3552,11 @@ static asio::awaitable<void> on_set_entity_set_flag(shared_ptr<Client> c, Subcom
         l->log.info_f("All enemies defeated; setting events with room={:04X} wave_number={:04X} to finished state",
             room, wave_number);
         for (auto ev_st : l->map_state->event_states_for_floor_room_wave(c->version(), cmd.floor, room, wave_number)) {
+          bool already_finished = (ev_st->flags & 0x10);
           ev_st->flags = (ev_st->flags | 0x18) & (~4);
+          if (already_finished) {
+            continue;
+          }
           l->log.info_f("Set flags on W-{:03X} to {:04X}", ev_st->w_id, ev_st->flags);
 
           const auto& ev_ver = ev_st->super_ev->version(c->version());
@@ -3627,7 +3631,6 @@ static asio::awaitable<void> on_set_entity_set_flag(shared_ptr<Client> c, Subcom
   co_await forward_subcommand_with_entity_id_transcode_t<G_SetEntitySetFlags_6x76>(c, msg);
 }
 
-
 // Dispatch the right per-difficulty DC V2 EXP table when the player has the
 // universal EXP shim enabled. The shim's body covers Normal; this corrects to
 // the actual loaded difficulty on every set-events trigger.
@@ -3686,6 +3689,8 @@ static asio::awaitable<void> on_trigger_set_event(shared_ptr<Client> c, Subcomma
     co_return;
   }
 
+  co_await dispatch_dc_v2_exp_patch(c);
+
   const auto& cmd = msg.check_size_t<G_TriggerSetEvent_6x67>();
   auto event_sts = l->map_state->event_states_for_id(c->version(), cmd.floor, cmd.event_id);
   l->log.info_f("Client triggered set events with floor {:02X} and ID {:X} ({} events)",
@@ -3698,7 +3703,6 @@ static asio::awaitable<void> on_trigger_set_event(shared_ptr<Client> c, Subcomma
   }
 
   forward_subcommand(c, msg);
-  co_await dispatch_dc_v2_exp_patch(c);
 }
 
 static inline uint32_t bswap32_high16(uint32_t v) {
