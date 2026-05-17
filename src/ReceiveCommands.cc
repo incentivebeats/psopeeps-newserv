@@ -481,7 +481,13 @@ static asio::awaitable<void> send_auto_patches_if_needed(shared_ptr<Client> c) {
       }
     }
 
-    co_await send_function_call_multi(c, functions_to_send);
+    if (!functions_to_send.empty()) {
+      if (c->check_flag(Client::Flag::SEND_FUNCTION_CALL_ACTUALLY_RUNS_CODE)) {
+        co_await send_function_call_multi(c, functions_to_send);
+      } else {
+        c->log.warning_f("Skipping {} auto patch function calls because this client only supports checksum-mode send_function_call", functions_to_send.size());
+      }
+    }
   }
 }
 
