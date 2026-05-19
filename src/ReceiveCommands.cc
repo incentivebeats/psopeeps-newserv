@@ -2817,7 +2817,8 @@ static asio::awaitable<void> on_10_main_menu(shared_ptr<Client> c, uint32_t item
         send_message_box(c, "$C6This ship option is only for Blue Burst.");
         break;
       }
-      if ((c->listener_port == 19145) || (c->listener_port == 19146)) {
+      if ((c->listener_port == 12000) || (c->listener_port == 12001) ||
+          (c->listener_port == 19145) || (c->listener_port == 19146)) {
         c->selected_blueballz_tier = -1;
         co_await send_auto_patches_if_needed(c);
         co_await enable_save_if_needed(c);
@@ -2827,7 +2828,7 @@ static asio::awaitable<void> on_10_main_menu(shared_ptr<Client> c, uint32_t item
         }
         break;
       }
-      send_reconnect(c, s->connect_address_for_client(c), 19145);
+      send_reconnect(c, s->connect_address_for_client(c), 12000);
       break;
     }
 
