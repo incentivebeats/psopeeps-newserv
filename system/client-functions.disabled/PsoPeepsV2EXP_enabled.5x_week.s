@@ -1,6 +1,7 @@
 .meta visibility="menu"
 .meta key="PsoPeepsV2EXP_enabled"
 .meta name="5x XP"
+.meta client_flag="0x0000200000000000"
 .meta description="Dreamcast V2 XP boost — applies across all difficulties (server dispatches per-difficulty tables on each area transition)."
 
 .versions 2OEF
