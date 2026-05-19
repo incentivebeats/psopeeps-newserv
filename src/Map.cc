@@ -4608,10 +4608,9 @@ shared_ptr<SuperMap::Enemy> SuperMap::add_enemy_and_children(
     case 0x0060: // TObjGrass
       add(EnemyType::GRASS_ASSASSIN);
       break;
-    case 0x0061: { // TObjEneRe2Flower
+    case 0x0061: // TObjEneRe2Flower
       add((this->area_for_floor(floor) == 0x23) ? EnemyType::DEL_LILY : EnemyType::POISON_LILY);
       break;
-    }
     case 0x0062: // TObjEneNanoDrago
       add(EnemyType::NANO_DRAGON);
       break;
@@ -6573,7 +6572,7 @@ void MapState::import_object_states_from_sync(
         throw logic_error("super object link is incorrect");
       }
       if (obj_st->game_flags != entry.flags) {
-        this->log.warning_f("({:04X} => K-{:03X}) Game flags from client ({:04X}) do not match game flags from map ({:04X})",
+        this->log.info_f("({:04X} => K-{:03X}) Game flags from client ({:04X}) do not match game flags from map ({:04X})",
             object_index, obj_st->k_id, entry.flags, obj_st->game_flags);
         obj_st->game_flags = entry.flags;
       }
@@ -6608,12 +6607,12 @@ void MapState::import_enemy_states_from_sync(Version from_version, const SyncEne
       // Only set the state if it's not an alias
       if (ene_st->super_ene == ene) {
         if (ene_st->game_flags != entry.flags) {
-          this->log.warning_f("({:04X} => E-{:03X}) Game flags from client ({:08X}) do not match game flags from map ({:08X})",
+          this->log.info_f("({:04X} => E-{:03X}) Game flags from client ({:08X}) do not match game flags from map ({:08X})",
               enemy_index, ene_st->e_id, entry.flags, ene_st->game_flags);
           ene_st->game_flags = entry.flags;
         }
         if (ene_st->total_damage != entry.total_damage) {
-          this->log.warning_f("({:04X} => E-{:03X}) Total damage from client ({}) does not match total damage from map ({})",
+          this->log.info_f("({:04X} => E-{:03X}) Total damage from client ({}) does not match total damage from map ({})",
               enemy_index, ene_st->e_id, entry.total_damage, ene_st->total_damage);
           ene_st->total_damage = entry.total_damage;
         }
@@ -6665,7 +6664,7 @@ void MapState::import_flag_states_from_sync(
           throw logic_error("super object link is incorrect");
         }
         if (obj_st->set_flags != set_flags) {
-          this->log.warning_f("({:04X} => K-{:03X}) Set flags from client ({:04X}) do not match set flags from map ({:04X})",
+          this->log.info_f("({:04X} => K-{:03X}) Set flags from client ({:04X}) do not match set flags from map ({:04X})",
               object_index, obj_st->k_id, set_flags, obj_st->set_flags);
           obj_st->set_flags = set_flags;
         }
@@ -6701,7 +6700,7 @@ void MapState::import_flag_states_from_sync(
           throw logic_error("super enemy link is incorrect");
         }
         if (ene_st->set_flags != set_flags) {
-          this->log.warning_f("({:04X} => E-{:03X}) Set flags from client ({:04X}) do not match set flags from map ({:04X})",
+          this->log.info_f("({:04X} => E-{:03X}) Set flags from client ({:04X}) do not match set flags from map ({:04X})",
               enemy_set_index, ene_st->e_id, set_flags, ene_st->set_flags);
           ene_st->set_flags = set_flags;
         }
@@ -6733,7 +6732,7 @@ void MapState::import_flag_states_from_sync(
         const auto& ev = entities.events.at(event_index - base_indexes.base_event_index);
         auto& ev_st = this->event_states.at(fc.base_super_ids.base_event_index + ev->super_id);
         if (ev_st->flags != flags) {
-          this->log.warning_f("({:04X} => W-{:03X}) Set flags from client ({:04X}) do not match flags from map ({:04X})",
+          this->log.info_f("({:04X} => W-{:03X}) Set flags from client ({:04X}) do not match flags from map ({:04X})",
               event_index, ev_st->w_id, flags, ev_st->flags);
           ev_st->flags = flags;
         }

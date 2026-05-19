@@ -882,6 +882,7 @@ void ServerState::load_config_early() {
   this->ip_stack_debug = this->config_json->get_bool("IPStackDebug", false);
   this->allow_unregistered_users = this->config_json->get_bool("AllowUnregisteredUsers", false);
   this->allow_pc_nte = this->config_json->get_bool("AllowPCNTE", false);
+  this->allow_same_account_concurrent_logins = this->config_json->get_bool("AllowSameAccountConcurrentLogins", false);
   this->allow_saving_accounts = this->config_json->get_bool("AllowSavingAccounts", true);
   this->use_temp_accounts_for_prototypes = this->config_json->get_bool("UseTemporaryAccountsForPrototypes", true);
   this->notify_server_for_max_level_achieved = this->config_json->get_bool("NotifyServerForMaxLevelAchieved", false);
@@ -1009,6 +1010,7 @@ void ServerState::load_config_early() {
   this->ep3_behavior_flags = this->config_json->get_int("Episode3BehaviorFlags", 0);
   this->ep3_card_auction_points = this->config_json->get_int("CardAuctionPoints", 0);
   this->hide_download_commands = this->config_json->get_bool("HideDownloadCommands", true);
+  this->censor_credentials = this->config_json->get_bool("CensorCredentials", true);
   this->proxy_allow_save_files = this->config_json->get_bool("ProxyAllowSaveFiles", true);
 
   try {

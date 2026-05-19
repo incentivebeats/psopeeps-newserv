@@ -936,7 +936,7 @@ static void transcode_inventory_items(
   }
   for (size_t z = num_items; z < 30; z++) {
     auto& item = items[z];
-    item.present = 0;
+    item.state = 0;
     item.unknown_a1 = 0;
     item.flags = 0;
     item.data.clear();
@@ -2467,7 +2467,7 @@ static asio::awaitable<void> on_pick_up_item_generic(
   if (!l->item_exists(floor, item_id)) {
     // This can happen if the network is slow, and the client tries to pick up the same item multiple times. Or
     // multiple clients could try to pick up the same item at approximately the same time; only one should get it.
-    l->log.warning_f("Player {} requests to pick up {:08X}, but the item does not exist; dropping command", client_id, item_id);
+    l->log.info_f("Player {} requests to pick up {:08X}, but the item does not exist; dropping command", client_id, item_id);
 
   } else {
     // This is handled by the server on BB, and by the leader on other versions. However, the client's logic is to
@@ -3096,7 +3096,7 @@ DropReconcileResult reconcile_drop_request_with_map(
     }
     bool object_ignore_def = (set_entry->param1 > 0.0);
     if (res.ignore_def != object_ignore_def) {
-      c->log.warning_f("ignore_def value {} from command does not match object\'s expected ignore_def {} (from p1={:g})",
+      c->log.info_f("ignore_def value {} from command does not match object\'s expected ignore_def {} (from p1={:g})",
           res.ignore_def ? "true" : "false", object_ignore_def ? "true" : "false", set_entry->param1);
     }
     if (c->check_flag(Client::Flag::DEBUG_ENABLED)) {
@@ -5023,22 +5023,71 @@ static asio::awaitable<void> on_battle_level_up_bb(shared_ptr<Client> c, Subcomm
   if (!l->check_flag(Lobby::Flag::QUEST_IN_PROGRESS)) {
     throw runtime_error("6xD0 command sent during free play");
   }
+  if (!l->quest) {
+    throw runtime_error("6x9B command sent without quest loaded");
+  }
+  if (!l->quest->meta.battle_rules) {
+    throw runtime_error("6x9B command sent without battle quest loaded");
+  }
 
   const auto& cmd = msg.check_size_t<G_BattleModeLevelUp_BB_6xD0>();
+  if (cmd.num_levels != l->quest->meta.battle_rules->death_level_up) {
+    throw runtime_error("client requested incorrect level count");
+  }
+
   auto lc = l->clients.at(cmd.header.client_id);
   if (lc) {
     auto s = c->require_server_state();
     auto lp = lc->character_file();
     uint32_t target_level = min<uint32_t>(lp->disp.stats.level + cmd.num_levels, 199);
     uint32_t before_exp = lp->disp.stats.exp;
-    int32_t exp_delta = lp->disp.stats.exp - before_exp;
-    if (exp_delta > 0) {
-      s->level_table(lc->version())->advance_to_level(lp->disp.stats, target_level, lp->disp.visual.char_class);
-      if (lc->version() == Version::BB_V4) {
-        send_give_experience(lc, exp_delta, 0xFFFF);
-        send_level_up(lc);
+    s->level_table(lc->version())->advance_to_level(lp->disp.stats, target_level, lp->disp.visual.char_class);
+    if ((lp->disp.stats.exp > before_exp) && (lc->version() == Version::BB_V4)) {
+      send_give_experience(lc, lp->disp.stats.exp - before_exp, 0xFFFF);
+      send_level_up(lc);
+    }
+  }
+  co_return;
+}
+
+static asio::awaitable<void> on_battle_tech_level_up(shared_ptr<Client> c, SubcommandMessage& msg) {
+  auto l = c->require_lobby();
+  if (!l->is_game()) {
+    throw runtime_error("6x9B command sent in non-game lobby");
+  }
+  if (l->mode != GameMode::BATTLE) {
+    throw runtime_error("6x9B command sent during free play");
+  }
+  if (!l->check_flag(Lobby::Flag::QUEST_IN_PROGRESS)) {
+    throw runtime_error("6x9B command sent during free play");
+  }
+  if (!l->quest) {
+    throw runtime_error("6x9B command sent without quest loaded");
+  }
+  if (!l->quest->meta.battle_rules) {
+    throw runtime_error("6x9B command sent without battle quest loaded");
+  }
+
+  const auto& cmd = msg.check_size_t<G_LevelUpAllTechniques_6x9B>();
+  if (cmd.num_levels != l->quest->meta.battle_rules->death_tech_level_up) {
+    throw runtime_error("client requested incorrect technique level count");
+  }
+
+  auto lc = l->clients.at(cmd.header.client_id);
+  if (lc) {
+    auto s = c->require_server_state();
+    auto lp = lc->character_file();
+    auto pmt = s->item_parameter_table(lc->version());
+    for (uint8_t tech_num = 0; tech_num < 0x13; tech_num++) {
+      size_t level = lp->get_technique_level(tech_num);
+      if (level != 0xFF) {
+        size_t new_level = std::min<size_t>(
+            level + cmd.num_levels, pmt->get_max_tech_level(lp->disp.visual.char_class, tech_num));
+        lp->set_technique_level(tech_num, new_level);
       }
     }
+
+    forward_subcommand(c, msg);
   }
   co_return;
 }
@@ -5976,7 +6025,7 @@ const vector<SubcommandDefinition> subcommand_definitions{
     /* 6x98 */ {NONE, NONE, 0x98, on_forward_check_game},
     /* 6x99 */ {NONE, NONE, 0x99, on_forward_check_game},
     /* 6x9A */ {NONE, NONE, 0x9A, on_forward_check_game_client},
-    /* 6x9B */ {NONE, NONE, 0x9B, on_forward_check_game},
+    /* 6x9B */ {NONE, NONE, 0x9B, on_battle_tech_level_up},
     /* 6x9C */ {NONE, NONE, 0x9C, on_set_enemy_status_effect_flags_ultimate},
     /* 6x9D */ {NONE, NONE, 0x9D, on_forward_check_game},
     /* 6x9E */ {NONE, NONE, 0x9E, forward_subcommand_m},
