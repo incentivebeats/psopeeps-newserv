@@ -1,5 +1,6 @@
 .meta key="PsoPeepsEP2EXP10x"
 .meta name="EP2 10x"
+.meta client_flag="0x0000200000000000"
 .meta description="Sets EP2 enemy EXP\nto 10x for GC crossplay"
 
 .versions 3OE2 3OJ5

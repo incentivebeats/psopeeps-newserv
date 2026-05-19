@@ -2817,7 +2817,8 @@ static asio::awaitable<void> on_10_main_menu(shared_ptr<Client> c, uint32_t item
         send_message_box(c, "$C6This ship option is only for Blue Burst.");
         break;
       }
-      if ((c->listener_port == 19145) || (c->listener_port == 19146)) {
+      if ((c->listener_port == 12000) || (c->listener_port == 12001) ||
+          (c->listener_port == 19145) || (c->listener_port == 19146)) {
         c->selected_blueballz_tier = -1;
         co_await send_auto_patches_if_needed(c);
         co_await enable_save_if_needed(c);
@@ -2827,7 +2828,7 @@ static asio::awaitable<void> on_10_main_menu(shared_ptr<Client> c, uint32_t item
         }
         break;
       }
-      send_reconnect(c, s->connect_address_for_client(c), 19145);
+      send_reconnect(c, s->connect_address_for_client(c), 12000);
       break;
     }
 
@@ -3120,21 +3121,18 @@ static asio::awaitable<void> on_10_proxy_destinations(shared_ptr<Client> c, uint
       c->channel->disconnect();
     } else {
       // PSO Peeps: boosted clients may not enter Vanilla/Hardcore.
-      // PC v2 receives boosted BattleParams via the patch server. DC/GC can be
-      // boosted either by old boosted-disc listener ports or by the PSO Peeps XP
-      // client-function patch, which sets HAS_PSO_PEEPS_XP_PATCH.
+      // DC/GC can be boosted either by old boosted-disc listener ports or by
+      // PSO Peeps XP client-function patches, which set HAS_PSO_PEEPS_XP_PATCH.
       const bool is_vanilla_or_hardcore_dest =
           (dest->second == 19203 || dest->second == 19230 || dest->second == 19530);
       const bool is_boosted_disc =
           (c->listener_port == 9105 || c->listener_port == 9110 ||
-           c->listener_port == 9201 || c->listener_port == 9202 ||
            c->listener_port == 19105 || c->listener_port == 19110);
-      const bool is_pc_v2_boosted = (c->version() == Version::PC_V2);
       const bool has_psopeeps_xp_patch =
           c->check_flag(Client::Flag::HAS_PSO_PEEPS_XP_PATCH);
 
       if (is_vanilla_or_hardcore_dest &&
-          (is_boosted_disc || is_pc_v2_boosted || has_psopeeps_xp_patch)) {
+          (is_boosted_disc || has_psopeeps_xp_patch)) {
         send_message_box(c,
             "$C6Vanilla and Hardcore are not available\n"
             "while boosted XP is active.\n\n"

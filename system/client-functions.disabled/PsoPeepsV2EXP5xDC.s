@@ -1,6 +1,7 @@
 .meta visibility="menu"
 .meta key="PsoPeepsV2EXP5xDC"
 .meta name="V2 5x"
+.meta client_flag="0x0000200000000000"
 .meta description="Dreamcast V2 EXP"
 
 .versions 2OEF
