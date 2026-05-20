@@ -878,6 +878,10 @@ void ServerState::load_config_early() {
   this->client_ping_interval_usecs = this->config_json->get_int("ClientPingInterval", 30000000);
   this->client_idle_timeout_usecs = this->config_json->get_int("ClientIdleTimeout", 60000000);
   this->patch_client_idle_timeout_usecs = this->config_json->get_int("PatchClientIdleTimeout", 300000000);
+  this->psopeeps_dcv2_exp_multiplier = this->config_json->get_int("PsoPeepsDCV2EXPMultiplier", 5);
+  if ((this->psopeeps_dcv2_exp_multiplier != 5) && (this->psopeeps_dcv2_exp_multiplier != 10)) {
+    throw runtime_error("PsoPeepsDCV2EXPMultiplier must be 5 or 10");
+  }
 
   this->ip_stack_debug = this->config_json->get_bool("IPStackDebug", false);
   this->allow_unregistered_users = this->config_json->get_bool("AllowUnregisteredUsers", false);

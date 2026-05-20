@@ -3656,11 +3656,14 @@ static asio::awaitable<void> dispatch_dc_v2_exp_patch(shared_ptr<Client> c) {
       co_return;
   }
 
-  string key = "PsoPeepsV2EXP_internal_10x_";
+  auto server_state = c->require_server_state();
+
+  string key = "PsoPeepsV2EXP_internal_";
+  key += std::to_string(server_state->psopeeps_dcv2_exp_multiplier);
+  key += "x_";
   key += diff_str;
 
   try {
-    auto server_state = c->require_server_state();
     auto fn = server_state->client_functions->get(key, c->specific_version);
     co_await send_function_call(c, fn);
   } catch (const out_of_range&) {
