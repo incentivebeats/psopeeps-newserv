@@ -9,5 +9,4 @@ entry_ptr:
 reloc0:
   .offsetof start
 start:
-  .align    4
-  .binary   4E800020
+  blr
