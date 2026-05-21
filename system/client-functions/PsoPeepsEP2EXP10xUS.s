@@ -1,7 +1,7 @@
 .meta visibility="menu"
 .meta key="PsoPeepsEP2EXP10xUS"
 .meta name="EP2 10x"
-.meta description="Sets EP2 enemy EXP to 10x for GC crossplay"
+.meta description="Sets EP2 enemy EXP\nto 10x for GC crossplay"
 
 .versions 3OE2
 
