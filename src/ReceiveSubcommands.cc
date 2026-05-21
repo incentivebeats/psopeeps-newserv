@@ -3710,9 +3710,17 @@ static asio::awaitable<void> dispatch_gc_v3_exp_patch(shared_ptr<Client> c) {
   key += "x_";
   key += episode_str;
 
+  void* lobby_token = l.get();
+  if ((c->last_psopeeps_gc_exp_lobby == lobby_token) &&
+      (c->last_psopeeps_gc_exp_key == key)) {
+    co_return;
+  }
+
   try {
     auto fn = server_state->client_functions->get(key, c->specific_version);
     co_await send_function_call(c, fn);
+    c->last_psopeeps_gc_exp_lobby = lobby_token;
+    c->last_psopeeps_gc_exp_key = key;
   } catch (const out_of_range&) {
     c->log.warning_f("GC V3 EXP dispatcher could not find client function {}", key);
   }
