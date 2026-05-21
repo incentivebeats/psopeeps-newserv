@@ -883,6 +883,11 @@ void ServerState::load_config_early() {
     throw runtime_error("PsoPeepsDCV2EXPMultiplier must be 5 or 10");
   }
 
+  this->psopeeps_gc_exp_multiplier = this->config_json->get_int("PsoPeepsGCEXPMultiplier", 5);
+  if ((this->psopeeps_gc_exp_multiplier != 5) && (this->psopeeps_gc_exp_multiplier != 10)) {
+    throw runtime_error("PsoPeepsGCEXPMultiplier must be 5 or 10");
+  }
+
   this->ip_stack_debug = this->config_json->get_bool("IPStackDebug", false);
   this->allow_unregistered_users = this->config_json->get_bool("AllowUnregisteredUsers", false);
   this->allow_pc_nte = this->config_json->get_bool("AllowPCNTE", false);

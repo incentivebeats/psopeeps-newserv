@@ -124,6 +124,7 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   uint64_t client_idle_timeout_usecs = 60000000;
   uint64_t patch_client_idle_timeout_usecs = 300000000;
   uint64_t psopeeps_dcv2_exp_multiplier = 5;
+  uint64_t psopeeps_gc_exp_multiplier = 5;
   bool is_debug = false;
   bool ip_stack_debug = false;
   bool allow_unregistered_users = false;

@@ -1,6 +1,6 @@
-.meta key="PsoPeepsEP2EXP5xUS"
-.meta name="EP2 5x"
-.meta description="Sets EP2 enemy EXP\nto 5x for GC crossplay"
+.meta key="PsoPeepsGCEXP_internal_5x_ep2"
+.meta name="INTERNAL GC 5x EP2"
+.meta description="Internal GC V3 EXP payload: INTERNAL GC 5x EP2. Server-dispatched; do not select manually."
 
 .versions 3OE2
 
