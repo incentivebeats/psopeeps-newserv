@@ -148,8 +148,6 @@ public:
 
   // Basic state
   uint64_t enabled_flags = DEFAULT_FLAGS; // Client::Flag enum
-  std::string last_psopeeps_gc_exp_key;
-  void* last_psopeeps_gc_exp_lobby = nullptr;
   uint32_t specific_version = 0;
   uint8_t override_section_id = 0xFF; // FF = no override
   uint8_t override_lobby_event = 0xFF; // FF = no override
