@@ -34,21 +34,21 @@ const char* QUEST_BARRIER_DISCONNECT_HOOK_NAME = "quest_barrier";
 const char* ADD_NEXT_CLIENT_DISCONNECT_HOOK_NAME = "add_next_game_client";
 
 
-static void dispatch_gc_v3_exp_patch_for_lobby(shared_ptr<Client> c, shared_ptr<Lobby> l) {
+static asio::awaitable<void> dispatch_gc_v3_exp_patch_for_lobby(shared_ptr<Client> c, shared_ptr<Lobby> l) {
   if (c->version() != Version::GC_V3) {
-    return;
+    co_return;
   }
   if (!c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL)) {
-    return;
+    co_return;
   }
   if (!c->login || !c->login->account) {
-    return;
+    co_return;
   }
   if (!c->login->account->auto_patches_enabled.count("PsoPeepsGCEXP_enabled")) {
-    return;
+    co_return;
   }
   if (!l || !l->is_game()) {
-    return;
+    co_return;
   }
 
   const char* episode_str = nullptr;
@@ -60,7 +60,7 @@ static void dispatch_gc_v3_exp_patch_for_lobby(shared_ptr<Client> c, shared_ptr<
       episode_str = "ep2";
       break;
     default:
-      return;
+      co_return;
   }
 
   auto server_state = c->require_server_state();
@@ -73,19 +73,26 @@ static void dispatch_gc_v3_exp_patch_for_lobby(shared_ptr<Client> c, shared_ptr<
   void* lobby_token = l.get();
   if ((c->last_psopeeps_gc_exp_lobby == lobby_token) &&
       (c->last_psopeeps_gc_exp_key == key)) {
-    return;
+    co_return;
   }
 
   try {
+    co_await prepare_client_for_patches(c);
+    if (!c->channel->connected()) {
+      co_return;
+    }
+
     auto fn = server_state->client_functions->get(key, c->specific_version);
-    send_function_call(c->channel, c->enabled_flags, fn);
-    c->enabled_flags |= fn->client_flag;
+    co_await send_function_call(c, fn);
+
     c->last_psopeeps_gc_exp_lobby = lobby_token;
     c->last_psopeeps_gc_exp_key = key;
   } catch (const out_of_range&) {
     c->log.warning_f("GC V3 EXP dispatcher could not find client function {}", key);
   }
 }
+
+
 
 static string bb_test_taint_filename(shared_ptr<Client> c) {
   return c->character_filename() + ".test-tainted";
@@ -3208,16 +3215,16 @@ static asio::awaitable<void> on_10_proxy_destinations(shared_ptr<Client> c, uint
   }
 }
 
-static void on_10_game_menu(shared_ptr<Client> c, uint32_t item_id, const std::string& password) {
+static asio::awaitable<void> on_10_game_menu(shared_ptr<Client> c, uint32_t item_id, const std::string& password) {
   auto s = c->require_server_state();
   auto game = s->find_lobby(item_id);
   if (!game) {
     send_lobby_message_box(c, "$C7You cannot join this\ngame because it no\nlonger exists.");
-    return;
+    co_return;
   }
   switch (game->join_error_for_client(c, &password)) {
     case Lobby::JoinError::ALLOWED:
-      dispatch_gc_v3_exp_patch_for_lobby(c, game);
+      co_await dispatch_gc_v3_exp_patch_for_lobby(c, game);
       if (!s->change_client_lobby(c, game)) {
         throw logic_error("client cannot join game after all preconditions satisfied");
       }
@@ -3532,7 +3539,7 @@ static asio::awaitable<void> on_10(shared_ptr<Client> c, Channel::Message& msg) 
       co_await on_10_proxy_destinations(c, base_cmd.item_id);
       break;
     case MenuID::GAME:
-      on_10_game_menu(c, base_cmd.item_id, std::move(password));
+      co_await on_10_game_menu(c, base_cmd.item_id, std::move(password));
       break;
     case MenuID::QUEST_CATEGORIES_EP1_EP3_EP4:
     case MenuID::QUEST_CATEGORIES_EP2:
@@ -5345,7 +5352,7 @@ static asio::awaitable<void> on_C1_PC(shared_ptr<Client> c, Channel::Message& ms
   }
   auto game = create_game_generic(s, c, cmd.name.decode(c->language()), cmd.password.decode(c->language()), Episode::EP1, mode, cmd.difficulty, true);
   if (game) {
-    dispatch_gc_v3_exp_patch_for_lobby(c, game);
+    co_await dispatch_gc_v3_exp_patch_for_lobby(c, game);
     s->change_client_lobby(c, game);
     c->set_flag(Client::Flag::LOADING);
     c->log.info_f("LOADING flag set");
@@ -5428,7 +5435,7 @@ static asio::awaitable<void> on_0C_C1_E7_EC(shared_ptr<Client> c, Channel::Messa
   }
 
   if (game) {
-    dispatch_gc_v3_exp_patch_for_lobby(c, game);
+    co_await dispatch_gc_v3_exp_patch_for_lobby(c, game);
     s->change_client_lobby(c, game);
     c->set_flag(Client::Flag::LOADING);
     c->log.info_f("LOADING flag set");
@@ -5485,7 +5492,7 @@ static asio::awaitable<void> on_C1_BB(shared_ptr<Client> c, Channel::Message& ms
 
   auto game = create_game_generic(s, c, cmd.name.decode(c->language()), cmd.password.decode(c->language()), episode, mode, cmd.difficulty);
   if (game) {
-    dispatch_gc_v3_exp_patch_for_lobby(c, game);
+    co_await dispatch_gc_v3_exp_patch_for_lobby(c, game);
     s->change_client_lobby(c, game);
     c->set_flag(Client::Flag::LOADING);
     c->log.info_f("LOADING flag set");
