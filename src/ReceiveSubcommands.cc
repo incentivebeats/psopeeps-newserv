@@ -3672,60 +3672,6 @@ static asio::awaitable<void> dispatch_dc_v2_exp_patch(shared_ptr<Client> c) {
 }
 
 
-static asio::awaitable<void> dispatch_gc_v3_exp_patch(shared_ptr<Client> c) {
-  if (c->version() != Version::GC_V3) {
-    co_return;
-  }
-  if (not c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL)) {
-    co_return;
-  }
-  if (not c->login || not c->login->account) {
-    co_return;
-  }
-  if (not c->login->account->auto_patches_enabled.count("PsoPeepsGCEXP_enabled")) {
-    co_return;
-  }
-
-  auto l = c->require_lobby();
-  if (not l->is_game()) {
-    co_return;
-  }
-
-  const char* episode_str = nullptr;
-  switch (l->episode) {
-    case Episode::EP1:
-      episode_str = "ep1";
-      break;
-    case Episode::EP2:
-      episode_str = "ep2";
-      break;
-    default:
-      co_return;
-  }
-
-  auto server_state = c->require_server_state();
-
-  string key = "PsoPeepsGCEXP_internal_";
-  key += std::to_string(server_state->psopeeps_gc_exp_multiplier);
-  key += "x_";
-  key += episode_str;
-
-  void* lobby_token = l.get();
-  if ((c->last_psopeeps_gc_exp_lobby == lobby_token) &&
-      (c->last_psopeeps_gc_exp_key == key)) {
-    co_return;
-  }
-
-  try {
-    auto fn = server_state->client_functions->get(key, c->specific_version);
-    co_await send_function_call(c, fn);
-    c->last_psopeeps_gc_exp_lobby = lobby_token;
-    c->last_psopeeps_gc_exp_key = key;
-  } catch (const out_of_range&) {
-    c->log.warning_f("GC V3 EXP dispatcher could not find client function {}", key);
-  }
-}
-
 static asio::awaitable<void> on_trigger_set_event(shared_ptr<Client> c, SubcommandMessage& msg) {
   auto l = c->require_lobby();
   if (!l->is_game()) {
@@ -3733,7 +3679,6 @@ static asio::awaitable<void> on_trigger_set_event(shared_ptr<Client> c, Subcomma
   }
 
   co_await dispatch_dc_v2_exp_patch(c);
-  co_await dispatch_gc_v3_exp_patch(c);
 
   const auto& cmd = msg.check_size_t<G_TriggerSetEvent_6x67>();
   auto event_sts = l->map_state->event_states_for_id(c->version(), cmd.floor, cmd.event_id);
