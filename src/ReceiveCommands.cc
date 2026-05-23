@@ -2,6 +2,7 @@
 
 #include <inttypes.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <fstream>
 #include <memory>
@@ -64,6 +65,29 @@ static bool mark_bb_character_test(shared_ptr<Client> c) {
   f << "account_id=" << account_id << "\n";
   f << "character_file=" << c->character_filename() << "\n";
   return f.good();
+}
+
+static void clear_bb_ship_state_markers_for_recreated_character(shared_ptr<Client> c) {
+  const string base_filename = c->character_filename();
+  const vector<string> suffixes = {
+      ".hardcore",
+      ".hardcore-dead",
+      ".hardcore-ineligible",
+      ".test",
+      ".test-tainted",
+      ".grandfathered-before-test-taint",
+  };
+
+  for (const auto& suffix : suffixes) {
+    const string filename = base_filename + suffix;
+    if (file_exists_for_bb_taint(filename)) {
+      if (::unlink(filename.c_str()) == 0) {
+        c->log.info_f("Removed stale BB ship-state marker for recreated character: {}", filename);
+      } else {
+        c->log.warning_f("Failed to remove stale BB ship-state marker for recreated character: {}", filename);
+      }
+    }
+  }
 }
 
 static bool enforce_bb_test_ship_lock(shared_ptr<Client> c, bool current_ship_is_test) {
@@ -4377,6 +4401,7 @@ static asio::awaitable<void> on_E5_BB(shared_ptr<Client> c, Channel::Message& ms
   } else {
     try {
       auto s = c->require_server_state();
+      clear_bb_ship_state_markers_for_recreated_character(c);
       c->create_character_file(c->login->account->account_id, c->language(), cmd.preview, s->level_table(c->version()));
       if (s->enable_test_mode) {
         if (!mark_bb_character_test(c)) {
