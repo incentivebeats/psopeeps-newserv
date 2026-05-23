@@ -310,6 +310,81 @@ static bool append_hardcore_stats_enemy_kill_event(
 }
 
 
+
+static bool append_hardcore_stats_death_event(shared_ptr<Client> c, const char* reason) {
+  try {
+    if (!current_ship_is_hardcore_bb(c)) {
+      return true;
+    }
+
+    {
+      ifstream hardcore_f(c->character_filename() + ".hardcore");
+      if (!hardcore_f.good()) {
+        return true;
+      }
+    }
+
+    ofstream f("system/hardcore-stats/events.jsonl", ios::out | ios::app);
+    if (!f.good()) {
+      c->log.warning_f("Hardcore stats death event: failed to open system/hardcore-stats/events.jsonl");
+      return false;
+    }
+
+    uint32_t account_id = 0;
+    string username;
+    if (c->login) {
+      if (c->login->account) {
+        account_id = c->login->account->account_id;
+      }
+      if (c->login->bb_license) {
+        username = c->login->bb_license->username;
+      }
+    }
+
+    auto p = c->character_file(false);
+    string character_name;
+    uint32_t level = 0;
+    uint32_t total_exp = 0;
+    uint64_t play_time_seconds = 0;
+
+    if (p) {
+      character_name = p->disp.name.decode(c->language());
+      level = p->disp.stats.level.load() + 1;
+      total_exp = p->disp.stats.exp.load();
+      play_time_seconds = p->play_time_seconds.load();
+    }
+
+    string location = hardcore_zone_name(c);
+
+    f << "{"
+      << "\"event_type\":\"death\","
+      << "\"time_epoch\":" << static_cast<long long>(time(nullptr)) << ","
+      << "\"account_id\":" << account_id << ","
+      << "\"username\":\"" << json_escape_for_hardcore_ledger(username) << "\","
+      << "\"character_slot\":" << c->bb_character_index << ","
+      << "\"character_file\":\"" << json_escape_for_hardcore_ledger(c->character_filename()) << "\","
+      << "\"character_name\":\"" << json_escape_for_hardcore_ledger(character_name) << "\","
+      << "\"level\":" << level << ","
+      << "\"total_exp\":" << total_exp << ","
+      << "\"play_time_seconds\":" << play_time_seconds << ","
+      << "\"location\":\"" << json_escape_for_hardcore_ledger(location) << "\","
+      << "\"killed_by\":\"" << json_escape_for_hardcore_ledger(reason ? reason : "unknown") << "\""
+      << "}\n";
+
+    if (!f.good()) {
+      c->log.warning_f("Hardcore stats death event: write failed for {}", c->character_filename());
+      return false;
+    }
+
+    return true;
+
+  } catch (const exception& e) {
+    c->log.warning_f("Hardcore stats death event failed: {}", e.what());
+    return false;
+  }
+}
+
+
 static bool mark_bb_character_hardcore_dead_for_subcommands(shared_ptr<Client> c, const char* reason) {
   string filename = bb_hardcore_dead_filename_for_subcommands(c);
 
@@ -342,6 +417,12 @@ static bool mark_bb_character_hardcore_dead_for_subcommands(shared_ptr<Client> c
       c->log.info_f("Hardcore permadeath: appended death ledger entry for {}", c->character_filename());
     } else {
       c->log.warning_f("Hardcore permadeath: FAILED to append death ledger entry for {}", c->character_filename());
+    }
+
+    if (append_hardcore_stats_death_event(c, reason)) {
+      c->log.info_f("Hardcore permadeath: appended stats death event for {}", c->character_filename());
+    } else {
+      c->log.warning_f("Hardcore permadeath: FAILED to append stats death event for {}", c->character_filename());
     }
 
   }
