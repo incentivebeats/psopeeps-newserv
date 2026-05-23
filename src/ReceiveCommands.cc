@@ -4797,6 +4797,10 @@ static bool append_hardcore_stats_snapshot(shared_ptr<Client> c, const char* con
     }
 
     auto p = c->character_file();
+    if (!p->creation_timestamp.load()) {
+      p->creation_timestamp = static_cast<uint32_t>(time(nullptr));
+    }
+
     auto limits = s->item_stack_limits(Version::BB_V4);
     const auto& stats = p->disp.stats.char_stats;
 
