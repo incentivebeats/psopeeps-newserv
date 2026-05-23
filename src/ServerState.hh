@@ -178,6 +178,7 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   bool enable_blueballz = false;
   int64_t blueballz_enemy_hp_scale_tier = -1; // -1 = disabled; 0..10 = scale BB enemy HP in stream files
   bool enable_hardcore_mode = false;
+  bool enable_test_mode = false;
   int8_t blueballz_max_tier = 10;
   int8_t blueballz_unlocked_tier_v2 = 0;
   int8_t blueballz_unlocked_tier_v3 = 0;

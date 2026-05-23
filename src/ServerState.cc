@@ -957,6 +957,7 @@ void ServerState::load_config_early() {
   this->enable_bb_ship_selection_menu = this->config_json->get_bool("EnableBBShipSelectionMenu", false);
   this->enable_blueballz = this->config_json->get_bool("EnableBlueballz", false);
   this->enable_hardcore_mode = this->config_json->get_bool("EnableHardcoreMode", false);
+  this->enable_test_mode = this->config_json->get_bool("EnableTestMode", false);
   this->blueballz_max_tier = std::min<int64_t>(10, std::max<int64_t>(0, this->config_json->get_int("BlueballzMaxTier", 10)));
   this->blueballz_unlocked_tier_v2 = std::min<int64_t>(
       this->blueballz_max_tier,

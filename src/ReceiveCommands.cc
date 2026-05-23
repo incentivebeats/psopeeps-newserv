@@ -34,12 +34,8 @@ const char* QUEST_BARRIER_DISCONNECT_HOOK_NAME = "quest_barrier";
 const char* ADD_NEXT_CLIENT_DISCONNECT_HOOK_NAME = "add_next_game_client";
 
 
-static string bb_test_taint_filename(shared_ptr<Client> c) {
-  return c->character_filename() + ".test-tainted";
-}
-
-static string bb_test_taint_grandfather_filename(shared_ptr<Client> c) {
-  return c->character_filename() + ".grandfathered-before-test-taint";
+static string bb_test_filename(shared_ptr<Client> c) {
+  return c->character_filename() + ".test";
 }
 
 static bool file_exists_for_bb_taint(const string& filename) {
@@ -47,28 +43,44 @@ static bool file_exists_for_bb_taint(const string& filename) {
   return f.good();
 }
 
-static bool bb_character_is_test_tainted(shared_ptr<Client> c) {
-  return file_exists_for_bb_taint(bb_test_taint_filename(c));
+static bool bb_character_is_test(shared_ptr<Client> c) {
+  return file_exists_for_bb_taint(bb_test_filename(c));
 }
 
-static bool bb_character_is_test_taint_grandfathered(shared_ptr<Client> c) {
-  return file_exists_for_bb_taint(bb_test_taint_grandfather_filename(c));
-}
-
-static bool mark_bb_character_test_tainted(shared_ptr<Client> c) {
-  string filename = bb_test_taint_filename(c);
+static bool mark_bb_character_test(shared_ptr<Client> c) {
+  string filename = bb_test_filename(c);
   ofstream f(filename, ios::out | ios::trunc);
   if (!f.good()) {
     return false;
   }
 
-  f << "status=test-tainted\n";
-  f << "reason=entered-test-ship\n";
-  f << "account_id=" << c->login->account->account_id << "\n";
+  uint32_t account_id = 0;
+  if (c->login && c->login->account) {
+    account_id = c->login->account->account_id;
+  }
+
+  f << "status=test\n";
+  f << "reason=created-on-test-ship\n";
+  f << "account_id=" << account_id << "\n";
   f << "character_file=" << c->character_filename() << "\n";
   return f.good();
 }
 
+static bool enforce_bb_test_ship_lock(shared_ptr<Client> c, bool current_ship_is_test) {
+  if (current_ship_is_test) {
+    if (!bb_character_is_test(c)) {
+      send_message_box(c, "$C6Only Test characters can enter Test.\n\n$C7Create a new character on the Test ship.");
+      return false;
+    }
+  } else {
+    if (bb_character_is_test(c)) {
+      send_message_box(c, "$C6This BB character is locked to Test.\n\n$C7Test characters cannot enter public ships.");
+      return false;
+    }
+  }
+
+  return true;
+}
 
 static string bb_hardcore_filename(shared_ptr<Client> c) {
   return c->character_filename() + ".hardcore";
@@ -127,9 +139,7 @@ static bool enforce_bb_hardcore_ship_lock(shared_ptr<Client> c, bool current_shi
   }
 
   if (current_ship_is_hardcore) {
-    if (bb_character_is_hardcore_ineligible(c) ||
-        bb_character_is_test_tainted(c) ||
-        bb_character_is_test_taint_grandfathered(c)) {
+    if (bb_character_is_hardcore_ineligible(c)) {
       if (!bb_character_is_hardcore_ineligible(c)) {
         mark_bb_character_hardcore_ineligible(c);
       }
@@ -2851,14 +2861,6 @@ static asio::awaitable<void> on_10_main_menu(shared_ptr<Client> c, uint32_t item
         break;
       }
 
-      // PSO Peeps alpha test: entering Test taints only non-grandfathered BB characters.
-      // Existing characters were grandfathered before this feature was enabled.
-      if (!bb_character_is_test_taint_grandfathered(c)) {
-        if (!mark_bb_character_test_tainted(c)) {
-          send_message_box(c, "$C6Could not mark this character for Test access.\n\n$C7Please report this.");
-          break;
-        }
-      }
 
       send_reconnect(c, s->connect_address_for_client(c), 19345);
       break;
@@ -2880,13 +2882,6 @@ static asio::awaitable<void> on_10_main_menu(shared_ptr<Client> c, uint32_t item
         break;
       }
 
-      // PSO Peeps dev/test isolation: entering Dev taints only non-grandfathered BB characters.
-      if (!bb_character_is_test_taint_grandfathered(c)) {
-        if (!mark_bb_character_test_tainted(c)) {
-          send_message_box(c, "$C6Could not mark this character for Dev access.\n\n$C7Please report this.");
-          break;
-        }
-      }
 
       send_reconnect(c, s->connect_address_for_client(c), 19445);
       break;
@@ -2908,8 +2903,8 @@ static asio::awaitable<void> on_10_main_menu(shared_ptr<Client> c, uint32_t item
         break;
       }
 
-      if (bb_character_is_test_tainted(c)) {
-        send_message_box(c, "$C6This character has been used outside of Vanilla and cannot enter Vanilla.\n\n$C7Use Live/Test with this character, or create a fresh Vanilla character.");
+      if (bb_character_is_test(c)) {
+        send_message_box(c, "$C6This BB character is locked to Test.\n\n$C7Test characters cannot enter public ships.");
         c->channel->disconnect();
         break;
       }
@@ -2937,8 +2932,7 @@ static asio::awaitable<void> on_10_main_menu(shared_ptr<Client> c, uint32_t item
       }
 
       if (bb_character_is_hardcore_ineligible(c) ||
-          bb_character_is_test_tainted(c) ||
-          bb_character_is_test_taint_grandfathered(c)) {
+          bb_character_is_test(c)) {
         if (!bb_character_is_hardcore_ineligible(c)) {
           mark_bb_character_hardcore_ineligible(c);
         }
@@ -4165,6 +4159,10 @@ static asio::awaitable<void> on_E3_BB(shared_ptr<Client> c, Channel::Message& ms
     c->bb_bank_character_index = cmd.character_index;
 
     auto s = c->require_server_state();
+    if (!enforce_bb_test_ship_lock(c, s->enable_test_mode)) {
+      c->unload_character(false);
+      co_return;
+    }
     if (!enforce_bb_hardcore_ship_lock(c, s->enable_hardcore_mode)) {
       c->unload_character(false);
       co_return;
@@ -4417,6 +4415,12 @@ static asio::awaitable<void> on_E5_BB(shared_ptr<Client> c, Channel::Message& ms
     try {
       auto s = c->require_server_state();
       c->create_character_file(c->login->account->account_id, c->language(), cmd.preview, s->level_table(c->version()));
+      if (s->enable_test_mode) {
+        if (!mark_bb_character_test(c)) {
+          throw runtime_error("could not mark new character as Test");
+        }
+        c->log.info_f("Marked BB character as Test: {}", c->character_filename());
+      }
     } catch (const exception& e) {
       send_message_box(c, std::format("$C6New character could not be created:\n{}", e.what()));
       should_send_approve = false;
