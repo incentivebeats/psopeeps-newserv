@@ -385,14 +385,50 @@ static bool append_hardcore_stats_death_event(shared_ptr<Client> c, const char* 
 }
 
 
+
+static bool bb_hardcore_dead_marker_matches_current_character_for_subcommands(
+    shared_ptr<Client> c,
+    const string& filename) {
+  ifstream f(filename);
+  if (!f.good()) {
+    return false;
+  }
+
+  uint32_t marker_creation_timestamp = 0;
+  string line;
+  while (getline(f, line)) {
+    const string prefix = "creation_timestamp=";
+    if (line.rfind(prefix, 0) == 0) {
+      try {
+        marker_creation_timestamp = stoul(line.substr(prefix.size()), nullptr, 0);
+      } catch (const exception&) {
+        marker_creation_timestamp = 0;
+      }
+    }
+  }
+
+  // Legacy dead markers didn't include a creation timestamp. Treat them as stale
+  // so recreated characters in the same slot can die and announce correctly.
+  if (!marker_creation_timestamp) {
+    return false;
+  }
+
+  try {
+    auto p = c->character_file(false);
+    if (!p) {
+      return true;
+    }
+    return marker_creation_timestamp == p->creation_timestamp.load();
+  } catch (const exception&) {
+    return true;
+  }
+}
+
+
 static bool mark_bb_character_hardcore_dead_for_subcommands(shared_ptr<Client> c, const char* reason) {
   string filename = bb_hardcore_dead_filename_for_subcommands(c);
 
-  bool already_dead = false;
-  {
-    ifstream existing_f(filename);
-    already_dead = existing_f.good();
-  }
+  bool already_dead = bb_hardcore_dead_marker_matches_current_character_for_subcommands(c, filename);
 
   ofstream f(filename, ios::out | ios::trunc);
   if (!f.good()) {
@@ -404,9 +440,23 @@ static bool mark_bb_character_hardcore_dead_for_subcommands(shared_ptr<Client> c
     account_id = c->login->account->account_id;
   }
 
+  uint32_t creation_timestamp = 0;
+  string character_name;
+  try {
+    auto p = c->character_file(false);
+    if (p) {
+      creation_timestamp = p->creation_timestamp.load();
+      character_name = p->disp.name.decode(c->language());
+    }
+  } catch (const exception&) {
+  }
+
   f << "status=hardcore-dead\n";
   f << "reason=" << reason << "\n";
   f << "account_id=" << account_id << "\n";
+  f << "character_slot=" << c->bb_character_index << "\n";
+  f << "creation_timestamp=" << creation_timestamp << "\n";
+  f << "character_name=" << character_name << "\n";
   f << "character_file=" << c->character_filename() << "\n";
 
   bool ok = f.good();
