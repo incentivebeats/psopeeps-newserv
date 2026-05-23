@@ -4828,6 +4828,7 @@ static bool append_hardcore_stats_snapshot(shared_ptr<Client> c, const char* con
       << "\"account_id\":" << account_id << ","
       << "\"username\":\"" << json_escape_for_hardcore_stats(username) << "\","
       << "\"character_slot\":" << c->bb_character_index << ","
+      << "\"character_creation_timestamp\":" << static_cast<uint64_t>(p->creation_timestamp.load()) << ","
       << "\"character_file\":\"" << json_escape_for_hardcore_stats(c->character_filename()) << "\","
       << "\"character_name\":\"" << json_escape_for_hardcore_stats(character_name) << "\","
       << "\"character_class\":\"" << json_escape_for_hardcore_stats(name_for_char_class(char_class)) << "\","
