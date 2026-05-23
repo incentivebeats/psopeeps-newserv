@@ -4761,7 +4761,11 @@ shared_ptr<Lobby> create_game_generic(
 
 
   auto p = creator_c->character_file();
-  if (!creator_c->login->account->check_flag(Account::Flag::FREE_JOIN_GAMES) && (min_level > p->disp.stats.level)) {
+  bool allow_free_join_games = creator_c->login->account->check_flag(Account::Flag::FREE_JOIN_GAMES);
+  if (s->enable_hardcore_mode && (creator_c->version() == Version::BB_V4) && bb_character_is_hardcore(creator_c)) {
+    allow_free_join_games = false;
+  }
+  if (!allow_free_join_games && (min_level > p->disp.stats.level)) {
     // Note: We don't throw here because this is a situation players might encounter while playing the game normally
     string msg = std::format("You must be level {}\nor above to play\nthis difficulty.", static_cast<size_t>(min_level + 1));
     send_lobby_message_box(creator_c, msg);

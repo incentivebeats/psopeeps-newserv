@@ -9,8 +9,24 @@
 #include "SendCommands.hh"
 #include "ServerState.hh"
 #include "Text.hh"
+#include <fstream>
 
 using namespace std;
+
+
+static bool bb_character_is_hardcore_for_lobby_join(const std::shared_ptr<Client>& c) {
+  if (!c || (c->version() != Version::BB_V4)) {
+    return false;
+  }
+
+  try {
+    std::ifstream f(c->character_filename() + ".hardcore");
+    return f.good();
+  } catch (const std::exception&) {
+    return false;
+  }
+}
+
 
 bool Lobby::FloorItem::visible_to_client(uint8_t client_id) const {
   return this->flags & (1 << client_id);
@@ -626,7 +642,11 @@ Lobby::JoinError Lobby::join_error_for_client(std::shared_ptr<Client> c, const s
         (this->check_flag(Flag::IS_CLIENT_CUSTOMIZATION) != c->check_flag(Client::Flag::IS_CLIENT_CUSTOMIZATION))) {
       return JoinError::VERSION_CONFLICT;
     }
-    if (!c->login->account->check_flag(Account::Flag::FREE_JOIN_GAMES)) {
+    bool allow_free_join_games = c->login->account->check_flag(Account::Flag::FREE_JOIN_GAMES);
+    if (bb_character_is_hardcore_for_lobby_join(c)) {
+      allow_free_join_games = false;
+    }
+    if (!allow_free_join_games) {
       if (password && !this->password.empty() && (*password != this->password)) {
         return JoinError::INCORRECT_PASSWORD;
       }
