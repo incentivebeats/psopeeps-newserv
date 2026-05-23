@@ -5036,6 +5036,54 @@ shared_ptr<Lobby> create_game_generic(
       return nullptr;
     }
 
+    auto progression_p = creator_c->character_file();
+    auto require_hardcore_boss_clear = [&](uint16_t flag_num, Difficulty required_difficulty, const char* boss_name) -> bool {
+      if (progression_p->quest_flags.get(required_difficulty, flag_num)) {
+        return true;
+      }
+
+      creator_c->log.warning_f(
+          "Hardcore progression blocked: Episode {} {} requires {} clear on {}",
+          static_cast<size_t>(episode),
+          name_for_difficulty(difficulty),
+          boss_name,
+          name_for_difficulty(required_difficulty));
+      send_message_box(creator_c, std::format(
+          "$C6Hardcore progression\nDefeat {} on\n{} first.",
+          boss_name,
+          name_for_difficulty(required_difficulty)));
+      return false;
+    };
+
+    size_t difficulty_index = static_cast<size_t>(difficulty);
+    static constexpr uint16_t HARDCORE_DARK_FALZ_CLEAR_FLAG = 0x0033;
+    static constexpr uint16_t HARDCORE_OLGA_FLOW_CLEAR_FLAG = 0x0057;
+
+    if (episode == Episode::EP1) {
+      if ((difficulty_index >= 1) && (difficulty_index <= 3)) {
+        Difficulty required_difficulty = static_cast<Difficulty>(difficulty_index - 1);
+        if (!require_hardcore_boss_clear(HARDCORE_DARK_FALZ_CLEAR_FLAG, required_difficulty, "Dark Falz")) {
+          return nullptr;
+        }
+      }
+    } else if (episode == Episode::EP2) {
+      if (difficulty_index == 2) {
+        if (!require_hardcore_boss_clear(HARDCORE_DARK_FALZ_CLEAR_FLAG, static_cast<Difficulty>(2), "Dark Falz")) {
+          return nullptr;
+        }
+      } else if (difficulty_index == 3) {
+        if (!require_hardcore_boss_clear(HARDCORE_OLGA_FLOW_CLEAR_FLAG, static_cast<Difficulty>(2), "Olga Flow")) {
+          return nullptr;
+        }
+      }
+    } else if (episode == Episode::EP4) {
+      if ((difficulty_index == 2) || (difficulty_index == 3)) {
+        if (!require_hardcore_boss_clear(HARDCORE_OLGA_FLOW_CLEAR_FLAG, difficulty, "Olga Flow")) {
+          return nullptr;
+        }
+      }
+    }
+
     if (((episode == Episode::EP2) || (episode == Episode::EP4)) &&
         (min_level > creator_c->character_file()->disp.stats.level)) {
       creator_c->log.warning_f(
