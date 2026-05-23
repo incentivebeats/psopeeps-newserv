@@ -19,6 +19,7 @@
 #include "QuestScript.hh"
 #include "TeamIndex.hh"
 #include "Text.hh"
+#include <string>
 
 extern const uint64_t CLIENT_CONFIG_MAGIC;
 
