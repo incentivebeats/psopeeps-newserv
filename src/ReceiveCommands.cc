@@ -2928,10 +2928,7 @@ static void on_10_quest_categories(shared_ptr<Client> c, uint32_t item_id) {
     shared_ptr<Lobby> l = c->lobby.lock();
     Episode episode = l ? l->episode : Episode::NONE;
     uint16_t version_flags = (1 << static_cast<size_t>(c->version())) | (l ? l->quest_version_flags() : 0);
-    QuestIndex::IncludeCondition include_condition = nullptr;
-    if (l && !c->login->account->check_flag(Account::Flag::DISABLE_QUEST_REQUIREMENTS)) {
-      include_condition = l->quest_include_condition();
-    }
+    QuestIndex::IncludeCondition include_condition = l ? l->quest_include_condition() : nullptr;
 
     const auto& quests = s->quest_index->filter(episode, version_flags, item_id, include_condition);
     send_quest_menu(c, quests, !l);

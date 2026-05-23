@@ -1608,14 +1608,10 @@ void send_quest_menu_bb(
 
 template <typename EntryT>
 void send_quest_categories_menu_t(shared_ptr<Client> c, QuestMenuType menu_type, Episode episode) {
-  QuestIndex::IncludeCondition include_condition = nullptr;
-  if (!c->login->account->check_flag(Account::Flag::DISABLE_QUEST_REQUIREMENTS)) {
-    auto l = c->lobby.lock();
-    include_condition = l ? l->quest_include_condition() : nullptr;
-  }
+  auto l = c->lobby.lock();
+  QuestIndex::IncludeCondition include_condition = l ? l->quest_include_condition() : nullptr;
 
   uint16_t version_flags = (1 << static_cast<size_t>(c->version()));
-  auto l = c->lobby.lock();
   if (l) {
     version_flags |= l->quest_version_flags();
   }

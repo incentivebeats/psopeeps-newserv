@@ -14,6 +14,7 @@
 #include "Loggers.hh"
 #include "SendCommands.hh"
 #include "Server.hh"
+#include <fstream>
 #include "Version.hh"
 
 using namespace std;
@@ -362,6 +363,20 @@ shared_ptr<const TeamIndex::Team> Client::team() const {
   return team;
 }
 
+
+static bool current_character_is_hardcore_for_quest_requirements(const Client* c) {
+  if (!c) {
+    return false;
+  }
+
+  try {
+    std::ifstream f(c->character_filename() + ".hardcore");
+    return f.good();
+  } catch (const std::exception&) {
+    return false;
+  }
+}
+
 bool Client::evaluate_quest_availability_expression(
     shared_ptr<const IntegralExpression> expr,
     shared_ptr<const Lobby> game,
@@ -369,7 +384,9 @@ bool Client::evaluate_quest_availability_expression(
     Difficulty difficulty,
     size_t num_players,
     bool v1_present) const {
-  if (this->login && this->login->account->check_flag(Account::Flag::DISABLE_QUEST_REQUIREMENTS)) {
+  if (this->login &&
+      this->login->account->check_flag(Account::Flag::DISABLE_QUEST_REQUIREMENTS) &&
+      !current_character_is_hardcore_for_quest_requirements(this)) {
     return true;
   }
   if (!expr) {
