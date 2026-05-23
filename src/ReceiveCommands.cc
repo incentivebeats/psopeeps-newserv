@@ -4708,6 +4708,126 @@ static asio::awaitable<void> on_C9_XB(shared_ptr<Client> c, Channel::Message& ms
   co_return;
 }
 
+static void log_hardcore_inventory_legality(shared_ptr<Client> c, const char* context) {
+  auto s = c->require_server_state();
+
+  if (!s->enable_hardcore_mode || (c->version() != Version::BB_V4) || !bb_character_is_hardcore(c)) {
+    return;
+  }
+
+  auto p = c->character_file();
+  const auto& inv = p->inventory;
+  auto limits = s->item_stack_limits(Version::BB_V4);
+  auto name_index = s->item_name_index(Version::BB_V4);
+
+  if (inv.num_items > inv.items.size()) {
+    c->log.warning_f(
+        "Hardcore item legality audit [{}]: inventory num_items={} exceeds slots={}",
+        context,
+        inv.num_items,
+        inv.items.size());
+  }
+
+  size_t count = (inv.num_items < inv.items.size()) ? inv.num_items : inv.items.size();
+
+  for (size_t z = 0; z < count; z++) {
+    const auto& inv_item = inv.items[z];
+    const auto& item = inv_item.data;
+
+    if (item.empty()) {
+      continue;
+    }
+
+    try {
+      uint32_t primary_id = item.primary_identifier();
+      string description;
+      try {
+        description = name_index->describe_item(item, 0);
+      } catch (const exception& e) {
+        c->log.warning_f(
+            "Hardcore item legality audit [{}]: slot={} item={} primary={:06X} describe failed: {}",
+            context,
+            z,
+            item.hex(),
+            primary_id,
+            e.what());
+      }
+
+      try {
+        size_t max_stack = item.max_stack_size(*limits);
+        size_t stack_size = item.stack_size(*limits);
+        if (stack_size > max_stack) {
+          c->log.warning_f(
+              "Hardcore item legality audit [{}]: slot={} item={} primary={:06X} stack_size={} max_stack={} desc={}",
+              context,
+              z,
+              item.hex(),
+              primary_id,
+              stack_size,
+              max_stack,
+              description);
+        }
+      } catch (const exception& e) {
+        c->log.warning_f(
+            "Hardcore item legality audit [{}]: slot={} item={} primary={:06X} stack check failed: {}",
+            context,
+            z,
+            item.hex(),
+            primary_id,
+            e.what());
+      }
+
+      if (item.data1[0] == 0x02) {
+        try {
+          uint16_t mag_level = item.compute_mag_level();
+          if (mag_level > 200) {
+            c->log.warning_f(
+                "Hardcore item legality audit [{}]: slot={} mag={} primary={:06X} level={} desc={}",
+                context,
+                z,
+                item.hex(),
+                primary_id,
+                mag_level,
+                description);
+          }
+        } catch (const exception& e) {
+          c->log.warning_f(
+              "Hardcore item legality audit [{}]: slot={} mag={} primary={:06X} mag-level check failed: {}",
+              context,
+              z,
+              item.hex(),
+              primary_id,
+              e.what());
+        }
+      }
+
+    } catch (const exception& e) {
+      c->log.warning_f(
+          "Hardcore item legality audit [{}]: slot={} item={} primary_identifier failed: {}",
+          context,
+          z,
+          item.hex(),
+          e.what());
+    }
+  }
+
+  for (auto slot : {EquipSlot::WEAPON, EquipSlot::ARMOR, EquipSlot::SHIELD, EquipSlot::MAG,
+           EquipSlot::UNIT_1, EquipSlot::UNIT_2, EquipSlot::UNIT_3, EquipSlot::UNIT_4}) {
+    try {
+      inv.find_equipped_item(slot);
+    } catch (const out_of_range&) {
+      // Empty equip slots are normal.
+    } catch (const exception& e) {
+      c->log.warning_f(
+          "Hardcore item legality audit [{}]: equipped-slot check failed: {}",
+          context,
+          e.what());
+    }
+  }
+}
+
+
+
 shared_ptr<Lobby> create_game_generic(
     shared_ptr<ServerState> s,
     shared_ptr<Client> creator_c,
@@ -4764,6 +4884,8 @@ shared_ptr<Lobby> create_game_generic(
     }
   }
 
+
+  log_hardcore_inventory_legality(creator_c, "create-game");
 
   auto p = creator_c->character_file();
   bool allow_free_join_games = creator_c->login->account->check_flag(Account::Flag::FREE_JOIN_GAMES);
