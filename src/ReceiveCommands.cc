@@ -23,6 +23,8 @@
 #include "ProxyCommands.hh"
 #include "ReceiveSubcommands.hh"
 #include "SendCommands.hh"
+#include <fstream>
+
 #include "StaticGameData.hh"
 #include "Text.hh"
 
@@ -31,6 +33,115 @@ using namespace std;
 const char* BATTLE_TABLE_DISCONNECT_HOOK_NAME = "battle_table_state";
 const char* QUEST_BARRIER_DISCONNECT_HOOK_NAME = "quest_barrier";
 const char* ADD_NEXT_CLIENT_DISCONNECT_HOOK_NAME = "add_next_game_client";
+
+
+static string bb_test_taint_grandfather_filename(shared_ptr<Client> c) {
+  return c->character_filename() + ".grandfathered-before-test-taint";
+}
+
+static bool file_exists_for_bb_taint(const string& filename) {
+  ifstream f(filename);
+  return f.good();
+}
+
+static bool bb_character_is_test_taint_grandfathered(shared_ptr<Client> c) {
+  return file_exists_for_bb_taint(bb_test_taint_grandfather_filename(c));
+}
+
+static string bb_hardcore_filename(shared_ptr<Client> c) {
+  return c->character_filename() + ".hardcore";
+}
+
+static string bb_hardcore_ineligible_filename(shared_ptr<Client> c) {
+  return c->character_filename() + ".hardcore-ineligible";
+}
+
+static string bb_hardcore_dead_filename(shared_ptr<Client> c) {
+  return c->character_filename() + ".hardcore-dead";
+}
+
+static bool bb_character_is_hardcore(shared_ptr<Client> c) {
+  return file_exists_for_bb_taint(bb_hardcore_filename(c));
+}
+
+static bool bb_character_is_hardcore_ineligible(shared_ptr<Client> c) {
+  return file_exists_for_bb_taint(bb_hardcore_ineligible_filename(c));
+}
+
+static bool bb_character_is_hardcore_dead(shared_ptr<Client> c) {
+  return file_exists_for_bb_taint(bb_hardcore_dead_filename(c));
+}
+
+static bool write_bb_hardcore_marker(shared_ptr<Client> c, const string& filename, const char* status, const char* reason) {
+  ofstream f(filename, ios::out | ios::trunc);
+  if (!f.good()) {
+    return false;
+  }
+
+  uint32_t account_id = 0;
+  if (c->login && c->login->account) {
+    account_id = c->login->account->account_id;
+  }
+
+  f << "status=" << status << "\n";
+  f << "reason=" << reason << "\n";
+  f << "account_id=" << account_id << "\n";
+  f << "character_file=" << c->character_filename() << "\n";
+  return f.good();
+}
+
+static bool mark_bb_character_hardcore(shared_ptr<Client> c) {
+  return write_bb_hardcore_marker(c, bb_hardcore_filename(c), "hardcore", "entered-hardcore-ship");
+}
+
+static bool mark_bb_character_hardcore_ineligible(shared_ptr<Client> c) {
+  return write_bb_hardcore_marker(c, bb_hardcore_ineligible_filename(c), "hardcore-ineligible", "entered-non-hardcore-ship");
+}
+
+static bool enforce_bb_hardcore_ship_lock(shared_ptr<Client> c, bool current_ship_is_hardcore) {
+  if (bb_character_is_hardcore_dead(c)) {
+    send_message_box(c, "$C6This Hardcore character is dead.\n\n$C7The character remains in your list, but cannot be loaded.");
+    return false;
+  }
+
+  if (current_ship_is_hardcore) {
+    if (bb_character_is_hardcore_ineligible(c) ||
+        bb_character_is_test_taint_grandfathered(c)) {
+      if (!bb_character_is_hardcore_ineligible(c)) {
+        mark_bb_character_hardcore_ineligible(c);
+      }
+      send_message_box(c, "$C6This BB character has already entered a non-Hardcore ship.\n\n$C7Create a new character and enter Hardcore first.");
+      return false;
+    }
+
+    if (!bb_character_is_hardcore(c)) {
+      if (!mark_bb_character_hardcore(c)) {
+        send_message_box(c, "$C6Could not mark this character for Hardcore.\n\n$C7Please report this.");
+        return false;
+      }
+      c->log.info_f("Marked BB character as Hardcore: {}", c->character_filename());
+    }
+
+    return true;
+
+  } else {
+    if (bb_character_is_hardcore(c)) {
+      send_message_box(c, "$C6This BB character is locked to Hardcore.\n\n$C7Hardcore characters cannot enter non-Hardcore ships.");
+      return false;
+    }
+
+    if (!bb_character_is_hardcore_ineligible(c)) {
+      if (!mark_bb_character_hardcore_ineligible(c)) {
+        send_message_box(c, "$C6Could not mark this character as non-Hardcore.\n\n$C7Please report this.");
+        return false;
+      }
+      c->log.info_f("Marked BB character as Hardcore-ineligible: {}", c->character_filename());
+    }
+
+    return true;
+  }
+}
+
 
 asio::awaitable<void> on_connect(std::shared_ptr<Client> c) {
   auto s = c->require_server_state();
@@ -3735,6 +3846,13 @@ static asio::awaitable<void> on_E3_BB(shared_ptr<Client> c, Channel::Message& ms
     c->unload_character(false);
     c->bb_character_index = cmd.character_index;
     c->bb_bank_character_index = cmd.character_index;
+
+    auto s = c->require_server_state();
+    if (!enforce_bb_hardcore_ship_lock(c, s->enable_hardcore_mode)) {
+      c->unload_character(false);
+      co_return;
+    }
+
     send_approve_player_choice_bb(c);
 
   } else {
