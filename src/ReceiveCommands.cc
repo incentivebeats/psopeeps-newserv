@@ -246,8 +246,6 @@ static void send_main_menu(shared_ptr<Client> c) {
       ((c->version() == Version::BB_V4) || (c->version() == Version::BB_PATCH));
   bool bb_frontdoor_ship_menu = s->enable_bb_ship_selection_menu && is_bb_ship_menu_client;
   bool bb_destination_transport_menu = !s->enable_bb_ship_selection_menu && is_bb_ship_menu_client;
-  bool show_bb_live_test_menu_items = bb_frontdoor_ship_menu || bb_destination_transport_menu;
-  bool show_bb_restricted_ship_menu_items = bb_frontdoor_ship_menu;
 
   uint32_t go_to_lobby_menu_item_flags =
       (s->proxy_destinations_dc.empty() ? 0 : MenuItem::Flag::INVISIBLE_ON_DC) |
@@ -313,43 +311,8 @@ static void send_main_menu(shared_ptr<Client> c) {
   // pre-lobby page and the lobby counter Transport list. Keep the frontdoor
   // as the full ship selector, but only expose safe transport choices on
   // destination ships.
-  uint32_t bb_live_test_menu_item_flags =
-      show_bb_live_test_menu_items
-          ? MenuItem::Flag::BB_ONLY
-          : (MenuItem::Flag::INVISIBLE_ON_DC |
-                MenuItem::Flag::INVISIBLE_ON_PC |
-                MenuItem::Flag::INVISIBLE_ON_GC |
-                MenuItem::Flag::INVISIBLE_ON_XB |
-                MenuItem::Flag::INVISIBLE_ON_BB);
 
-  uint32_t bb_restricted_ship_menu_item_flags =
-      show_bb_restricted_ship_menu_items
-          ? MenuItem::Flag::BB_ONLY
-          : (MenuItem::Flag::INVISIBLE_ON_DC |
-                MenuItem::Flag::INVISIBLE_ON_PC |
-                MenuItem::Flag::INVISIBLE_ON_GC |
-                MenuItem::Flag::INVISIBLE_ON_XB |
-                MenuItem::Flag::INVISIBLE_ON_BB);
 
-  main_menu->items.emplace_back(MainMenuItemID::BB_LIVE_SHIP, "PSO-Peeps Live",
-      "Join the live\nPSO-Peeps ship", bb_live_test_menu_item_flags);
-  main_menu->items.emplace_back(MainMenuItemID::BB_TEST_SHIP, "Test Ship",
-      "Join the test\nconfiguration ship", bb_live_test_menu_item_flags);
-  main_menu->items.emplace_back(MainMenuItemID::BB_DEV_SHIP, "Dev Ship",
-      "Join the dev\nexperimental ship", bb_restricted_ship_menu_item_flags);
-  main_menu->items.emplace_back(MainMenuItemID::BB_VANILLA_SHIP, "Vanilla Ship",
-      "Join the vanilla\ndefault-settings ship", bb_restricted_ship_menu_item_flags);
-  main_menu->items.emplace_back(MainMenuItemID::BB_HARDCORE_SHIP, "Hardcore Ship",
-      "Join the hardcore\npermadeath ship", bb_restricted_ship_menu_item_flags);
-
-  uint32_t proxy_destinations_menu_item_flags =
-      (s->proxy_destinations_dc.empty() ? MenuItem::Flag::INVISIBLE_ON_DC : 0) |
-      (s->proxy_destinations_pc.empty() ? MenuItem::Flag::INVISIBLE_ON_PC : 0) |
-      (s->proxy_destinations_gc.empty() ? MenuItem::Flag::INVISIBLE_ON_GC : 0) |
-      (s->proxy_destinations_xb.empty() ? MenuItem::Flag::INVISIBLE_ON_XB : 0) |
-      MenuItem::Flag::INVISIBLE_ON_BB;
-  main_menu->items.emplace_back(MainMenuItemID::PROXY_DESTINATIONS, "Select ship",
-      "Choose Live,\nVanilla, or Test", proxy_destinations_menu_item_flags);
 
   main_menu->items.emplace_back(MainMenuItemID::DOWNLOAD_QUESTS, "Download quests",
       "Download quests", MenuItem::Flag::INVISIBLE_ON_DC_PROTOS | MenuItem::Flag::INVISIBLE_ON_PC_NTE | MenuItem::Flag::INVISIBLE_ON_BB);
