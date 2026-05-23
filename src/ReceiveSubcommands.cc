@@ -5286,6 +5286,133 @@ static asio::awaitable<void> on_challenge_mode_retry_or_quit(shared_ptr<Client> 
   co_return;
 }
 
+
+static bool append_hardcore_stats_challenge_clear_event(
+    shared_ptr<Client> c,
+    const char* episode_name,
+    size_t stage_number,
+    uint16_t clear_time_seconds,
+    bool improved,
+    uint16_t previous_time_seconds) {
+  try {
+    if (!current_ship_is_hardcore_bb(c)) {
+      return true;
+    }
+
+    {
+      ifstream hardcore_f(c->character_filename() + ".hardcore");
+      if (!hardcore_f.good()) {
+        return true;
+      }
+    }
+
+    ofstream f("system/hardcore-stats/events.jsonl", ios::out | ios::app);
+    if (!f.good()) {
+      c->log.warning_f("Hardcore stats challenge clear event: failed to open system/hardcore-stats/events.jsonl");
+      return false;
+    }
+
+    uint32_t account_id = 0;
+    string username;
+    if (c->login) {
+      if (c->login->account) {
+        account_id = c->login->account->account_id;
+      }
+      if (c->login->bb_license) {
+        username = c->login->bb_license->username;
+      }
+    }
+
+    auto p = c->character_file(false);
+    string character_name;
+    uint32_t creation_timestamp = 0;
+    uint32_t level = 0;
+    uint32_t total_exp = 0;
+    uint64_t play_time_seconds = 0;
+
+    if (p) {
+      character_name = p->disp.name.decode(c->language());
+      creation_timestamp = p->creation_timestamp.load();
+      level = p->disp.stats.level.load() + 1;
+      total_exp = p->disp.stats.exp.load();
+      play_time_seconds = p->play_time_seconds.load();
+    }
+
+    string difficulty_name = "unknown";
+    try {
+      auto l = c->require_lobby();
+      difficulty_name = name_for_difficulty(l->difficulty);
+    } catch (const exception&) {
+    }
+
+    f << "{"
+      << "\"event_type\":\"challenge_clear\","
+      << "\"time_epoch\":" << static_cast<long long>(time(nullptr)) << ","
+      << "\"account_id\":" << account_id << ","
+      << "\"username\":\"" << json_escape_for_hardcore_ledger(username) << "\","
+      << "\"character_slot\":" << c->bb_character_index << ","
+      << "\"character_creation_timestamp\":" << creation_timestamp << ","
+      << "\"character_file\":\"" << json_escape_for_hardcore_ledger(c->character_filename()) << "\","
+      << "\"character_name\":\"" << json_escape_for_hardcore_ledger(character_name) << "\","
+      << "\"level\":" << level << ","
+      << "\"total_exp\":" << total_exp << ","
+      << "\"play_time_seconds\":" << play_time_seconds << ","
+      << "\"episode\":\"" << json_escape_for_hardcore_ledger(episode_name ? episode_name : "unknown") << "\","
+      << "\"stage\":" << stage_number << ","
+      << "\"stage_name\":\"C" << stage_number << "\","
+      << "\"difficulty\":\"" << json_escape_for_hardcore_ledger(difficulty_name) << "\","
+      << "\"clear_time_seconds\":" << clear_time_seconds << ","
+      << "\"improved\":" << (improved ? "true" : "false") << ","
+      << "\"previous_time_seconds\":" << previous_time_seconds
+      << "}\n";
+
+    if (!f.good()) {
+      c->log.warning_f("Hardcore stats challenge clear event: write failed for {}", c->character_filename());
+      return false;
+    }
+
+    return true;
+
+  } catch (const exception& e) {
+    c->log.warning_f("Hardcore stats challenge clear event failed: {}", e.what());
+    return false;
+  }
+}
+
+static void append_hardcore_stats_challenge_clear_events_for_bb_records(
+    shared_ptr<Client> c,
+    const PlayerRecordsChallengeBB& old_records,
+    const PlayerRecordsChallengeBB& new_records) {
+  auto check_times = [&](const char* episode_name, const auto& old_times, const auto& new_times) {
+    for (size_t z = 0; z < new_times.size(); z++) {
+      if (!new_times[z].has_value()) {
+        continue;
+      }
+
+      uint16_t new_seconds = new_times[z].decode();
+      bool old_has_value = old_times[z].has_value();
+      uint16_t old_seconds = old_has_value ? old_times[z].decode() : 0;
+
+      bool improved = (!old_has_value) || (new_seconds < old_seconds);
+      if (!improved) {
+        continue;
+      }
+
+      append_hardcore_stats_challenge_clear_event(
+          c,
+          episode_name,
+          z + 1,
+          new_seconds,
+          old_has_value,
+          old_seconds);
+    }
+  };
+
+  check_times("EP1", old_records.times_ep1_online, new_records.times_ep1_online);
+  check_times("EP2", old_records.times_ep2_online, new_records.times_ep2_online);
+}
+
+
 static asio::awaitable<void> on_challenge_update_records(shared_ptr<Client> c, SubcommandMessage& msg) {
   auto l = c->lobby.lock();
   if (!l) {
@@ -5320,6 +5447,8 @@ static asio::awaitable<void> on_challenge_update_records(shared_ptr<Client> c, S
     }
     case Version::BB_V4: {
       const auto& cmd = msg.check_size_t<G_SetChallengeRecords_BB_6x7C>();
+      auto old_challenge_records = p->challenge_records;
+      append_hardcore_stats_challenge_clear_events_for_bb_records(c, old_challenge_records, cmd.records);
       p->challenge_records = cmd.records;
       break;
     }
