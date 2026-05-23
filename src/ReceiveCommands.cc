@@ -4836,6 +4836,7 @@ static bool append_hardcore_stats_snapshot(shared_ptr<Client> c, const char* con
       << "\"section_id_id\":" << static_cast<size_t>(section_id) << ","
       << "\"level\":" << static_cast<size_t>(p->disp.stats.level.load() + 1) << ","
       << "\"total_exp\":" << static_cast<uint64_t>(p->disp.stats.exp.load()) << ","
+      << "\"play_time_seconds\":" << static_cast<uint64_t>(p->play_time_seconds.load()) << ","
       << "\"alive\":" << (hardcore_stats_character_is_dead(c) ? "false" : "true") << ","
       << "\"character_stats\":{"
       << "\"ATP\":" << stats.atp.load() << ","
