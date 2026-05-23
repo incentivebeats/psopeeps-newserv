@@ -2393,6 +2393,11 @@ static asio::awaitable<void> on_player_drop_item(shared_ptr<Client> c, Subcomman
     co_return;
   }
 
+  if (current_ship_is_hardcore_bb(c)) {
+    send_message_box(c, "$C6Dropping items is disabled in Hardcore Mode.");
+    co_return;
+  }
+
   auto s = c->require_server_state();
   auto l = c->require_lobby();
   auto p = c->character_file();
@@ -2517,6 +2522,11 @@ static asio::awaitable<void> on_drop_partial_stack_bb(shared_ptr<Client> c, Subc
   }
   if (cmd.header.client_id != c->lobby_client_id) {
     throw runtime_error("6xC3 command sent by incorrect client");
+  }
+
+  if (current_ship_is_hardcore_bb(c)) {
+    send_message_box(c, "$C6Dropping Meseta or stacked items is disabled in Hardcore Mode.");
+    co_return;
   }
 
   auto s = c->require_server_state();
@@ -4765,6 +4775,12 @@ asio::awaitable<void> on_transfer_item_via_mail_message_bb(shared_ptr<Client> c,
   }
   if (cmd.header.client_id != c->lobby_client_id) {
     throw runtime_error("6xCB command sent by incorrect client");
+  }
+
+  if (current_ship_is_hardcore_bb(c)) {
+    send_message_box(c, "$C6Item transfer by mail is disabled in Hardcore Mode.");
+    send_command(c, 0x16EA, 0x00000000);
+    co_return;
   }
 
   auto s = c->require_server_state();

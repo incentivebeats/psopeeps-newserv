@@ -5963,6 +5963,15 @@ static asio::awaitable<void> on_D0_V3_BB(shared_ptr<Client> c, Channel::Message&
     throw runtime_error("trade command sent to missing player");
   }
 
+  auto s = c->require_server_state();
+  if (s->enable_hardcore_mode &&
+      (((c->version() == Version::BB_V4) && bb_character_is_hardcore(c)) ||
+          ((target_c->version() == Version::BB_V4) && bb_character_is_hardcore(target_c)))) {
+    send_message_box(c, "$C6Trading is disabled in Hardcore Mode.");
+    send_message_box(target_c, "$C6Trading is disabled in Hardcore Mode.");
+    co_return;
+  }
+
   c->pending_item_trade = make_unique<Client::PendingItemTrade>();
   c->pending_item_trade->other_client_id = cmd.target_client_id;
   for (size_t x = 0; x < cmd.item_count; x++) {
@@ -6002,6 +6011,18 @@ static asio::awaitable<void> on_D2_V3_BB(shared_ptr<Client> c, Channel::Message&
   }
 
   auto s = c->require_server_state();
+  if (s->enable_hardcore_mode &&
+      (((c->version() == Version::BB_V4) && bb_character_is_hardcore(c)) ||
+          ((target_c->version() == Version::BB_V4) && bb_character_is_hardcore(target_c)))) {
+    c->pending_item_trade.reset();
+    target_c->pending_item_trade.reset();
+    send_command(c, 0xD4, 0x00);
+    send_command(target_c, 0xD4, 0x00);
+    send_message_box(c, "$C6Trading is disabled in Hardcore Mode.");
+    send_message_box(target_c, "$C6Trading is disabled in Hardcore Mode.");
+    co_return;
+  }
+
   auto complete_trade_for_side = [s, l](shared_ptr<Client> c, shared_ptr<Client> other_c) -> void {
     if (c->version() == Version::BB_V4) {
       // On BB, the server generates the delete/create item commands
