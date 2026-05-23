@@ -48,7 +48,7 @@ static bool bb_character_is_test_taint_grandfathered(shared_ptr<Client> c) {
   return file_exists_for_bb_taint(bb_test_taint_grandfather_filename(c));
 }
 
-static string bb_hardcore_filename(shared_ptr<Client> c) {
+static string bb_hardcore_filename(shared_ptr<const Client> c) {
   return c->character_filename() + ".hardcore";
 }
 
@@ -60,7 +60,7 @@ static string bb_hardcore_dead_filename(shared_ptr<Client> c) {
   return c->character_filename() + ".hardcore-dead";
 }
 
-static bool bb_character_is_hardcore(shared_ptr<Client> c) {
+static bool bb_character_is_hardcore(shared_ptr<const Client> c) {
   return file_exists_for_bb_taint(bb_hardcore_filename(c));
 }
 
@@ -313,8 +313,13 @@ static shared_ptr<const Menu> proxy_options_menu_for_client(shared_ptr<const Cli
     add_flag_option(ProxyOptionsMenuItemID::SWITCH_ASSIST, Client::Flag::SWITCH_ASSIST_ENABLED,
         "Switch assist", "Automatically unlock\nmulti-player doors\nwhen you step on\nany of the door\'s\nswitches");
   }
-  if ((s->cheat_mode_behavior != ServerState::BehaviorSwitch::OFF) ||
-      c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE)) {
+  bool allow_cheat_options =
+      (s->cheat_mode_behavior != ServerState::BehaviorSwitch::OFF) ||
+      c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE);
+  if (s->enable_hardcore_mode && (c->version() == Version::BB_V4) && bb_character_is_hardcore(c)) {
+    allow_cheat_options = false;
+  }
+  if (allow_cheat_options) {
     if (!is_ep3(c->version())) {
       add_flag_option(ProxyOptionsMenuItemID::INFINITE_HP, Client::Flag::INFINITE_HP_ENABLED,
           "Infinite HP", "Enable automatic HP\nrestoration when\nyou are hit by an\nenemy or trap\n\nCannot revive you\nfrom one-hit kills");

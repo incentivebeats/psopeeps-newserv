@@ -1883,7 +1883,7 @@ static asio::awaitable<void> on_player_revivable(shared_ptr<Client> c, Subcomman
 
   // Revive if infinite HP is enabled
   bool player_cheats_enabled = l->check_flag(Lobby::Flag::CHEATS_ENABLED) ||
-      (c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE));
+      (!current_ship_is_hardcore_bb(c) && c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE));
   if (player_cheats_enabled && c->check_flag(Client::Flag::INFINITE_HP_ENABLED)) {
     G_UseMedicalCenter_6x31 v2_cmd = {0x31, 0x01, c->lobby_client_id};
     G_RevivePlayer_V3_BB_6xA1 v3_cmd = {0xA1, 0x01, c->lobby_client_id};
@@ -1915,7 +1915,8 @@ static asio::awaitable<void> on_player_revived(shared_ptr<Client> c, SubcommandM
     }
 
     forward_subcommand(c, msg);
-    if ((l->check_flag(Lobby::Flag::CHEATS_ENABLED) || (c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE))) &&
+    if ((l->check_flag(Lobby::Flag::CHEATS_ENABLED) ||
+            (!current_ship_is_hardcore_bb(c) && c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE))) &&
         c->check_flag(Client::Flag::INFINITE_HP_ENABLED)) {
       co_await send_change_player_hp(l, c->lobby_client_id, PlayerHPChange::MAXIMIZE_HP, 0);
     }
@@ -1931,7 +1932,7 @@ static asio::awaitable<void> on_received_condition(shared_ptr<Client> c, Subcomm
     forward_subcommand(c, msg);
     if (cmd.client_id == c->lobby_client_id) {
       bool player_cheats_enabled = l->check_flag(Lobby::Flag::CHEATS_ENABLED) ||
-          c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE);
+          (!current_ship_is_hardcore_bb(c) && c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE));
       if (player_cheats_enabled && c->check_flag(Client::Flag::INFINITE_HP_ENABLED)) {
         co_await send_remove_negative_conditions(c);
       }
@@ -1949,7 +1950,8 @@ static asio::awaitable<void> on_change_hp(shared_ptr<Client> c, SubcommandMessag
   }
 
   forward_subcommand(c, msg);
-  if ((l->check_flag(Lobby::Flag::CHEATS_ENABLED) || c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE)) &&
+  if ((l->check_flag(Lobby::Flag::CHEATS_ENABLED) ||
+          (!current_ship_is_hardcore_bb(c) && c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE))) &&
       c->check_flag(Client::Flag::INFINITE_HP_ENABLED)) {
     co_await send_change_player_hp(l, c->lobby_client_id, PlayerHPChange::MAXIMIZE_HP, 0);
   }
@@ -1962,7 +1964,8 @@ static asio::awaitable<void> on_cast_technique_finished(shared_ptr<Client> c, Su
   if (l->is_game() && (cmd.header.client_id == c->lobby_client_id)) {
     forward_subcommand(c, msg);
     bool player_cheats_enabled = !is_v1(c->version()) &&
-        (l->check_flag(Lobby::Flag::CHEATS_ENABLED) || (c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE)));
+        (l->check_flag(Lobby::Flag::CHEATS_ENABLED) ||
+            (!current_ship_is_hardcore_bb(c) && c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE)));
     if (player_cheats_enabled && c->check_flag(Client::Flag::INFINITE_TP_ENABLED)) {
       send_player_stats_change(c, PlayerStatsChange::ADD_TP, 255);
     }

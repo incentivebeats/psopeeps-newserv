@@ -22,8 +22,27 @@
 #include "Server.hh"
 #include "StaticGameData.hh"
 #include "Text.hh"
+#include <fstream>
 
 using namespace std;
+
+
+static bool bb_character_is_hardcore_for_chat_commands(const shared_ptr<Client>& c) {
+  if (!c || !c->login || (c->version() != Version::BB_V4)) {
+    return false;
+  }
+  try {
+    auto s = c->require_server_state();
+    if (!s->enable_hardcore_mode) {
+      return false;
+    }
+    std::ifstream f(c->character_filename() + ".hardcore");
+    return f.good();
+  } catch (const std::exception&) {
+    return false;
+  }
+}
+
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Tools
@@ -136,7 +155,8 @@ struct Args {
     if (behavior_is_cheating &&
         this->check_permissions &&
         !this->c->require_lobby()->check_flag(Lobby::Flag::CHEATS_ENABLED) &&
-        !this->c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE)) {
+        (bb_character_is_hardcore_for_chat_commands(this->c) ||
+            !this->c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE))) {
       throw precondition_failed("$C6This command can\nonly be used in\ncheat mode.");
     }
   }
@@ -145,7 +165,9 @@ struct Args {
     if (behavior_is_cheating &&
         this->check_permissions &&
         (this->c->require_server_state()->cheat_mode_behavior == ServerState::BehaviorSwitch::OFF) &&
-        (!this->c->login || !this->c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE))) {
+        (!this->c->login ||
+            bb_character_is_hardcore_for_chat_commands(this->c) ||
+            !this->c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE))) {
       throw precondition_failed("$C6Cheats are disabled");
     }
   }
@@ -584,7 +606,8 @@ ChatCommandDefinition cc_cheat(
 
         auto s = a.c->require_server_state();
         if (!l->check_flag(Lobby::Flag::CHEATS_ENABLED) &&
-            !a.c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE) &&
+            (bb_character_is_hardcore_for_chat_commands(a.c) ||
+                !a.c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE)) &&
             s->cheat_flags.insufficient_minimum_level) {
           size_t default_min_level = s->default_min_level_for_game(a.c->version(), l->episode, l->difficulty);
           if (l->min_level < default_min_level) {
@@ -889,7 +912,8 @@ ChatCommandDefinition cc_edit(
 
       bool cheats_allowed = (!a.check_permissions ||
           (s->cheat_mode_behavior != ServerState::BehaviorSwitch::OFF) ||
-          a.c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE));
+          (!bb_character_is_hardcore_for_chat_commands(a.c) &&
+              a.c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE)));
 
       string encoded_args = phosg::tolower(a.text);
       vector<string> tokens = phosg::split(encoded_args, ' ');
@@ -1767,7 +1791,8 @@ ChatCommandDefinition cc_minlevel(
       auto l = a.c->require_lobby();
       auto s = a.c->require_server_state();
       bool cheats_allowed = (l->check_flag(Lobby::Flag::CHEATS_ENABLED) ||
-          a.c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE));
+          (!bb_character_is_hardcore_for_chat_commands(a.c) &&
+              a.c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE)));
       if (!cheats_allowed && s->cheat_flags.insufficient_minimum_level) {
         size_t default_min_level = s->default_min_level_for_game(a.c->version(), l->episode, l->difficulty);
         if (new_min_level < default_min_level) {
