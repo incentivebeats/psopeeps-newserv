@@ -721,6 +721,101 @@ static void log_hardcore_inventory_legality_for_lobby_join(const std::shared_ptr
     }
   }
 
+
+  const auto& bank = p->bank;
+
+  if (bank.num_items > bank.items.size()) {
+    c->log.warning_f(
+        "Hardcore item legality audit [{}]: bank num_items={} exceeds slots={}",
+        context,
+        bank.num_items,
+        bank.items.size());
+  }
+
+  size_t bank_num_items = static_cast<size_t>(bank.num_items);
+  size_t bank_count = (bank_num_items < bank.items.size()) ? bank_num_items : bank.items.size();
+
+  for (size_t z = 0; z < bank_count; z++) {
+    const auto& bank_item = bank.items[z];
+    const auto& item = bank_item.data;
+
+    if (item.empty()) {
+      continue;
+    }
+
+    try {
+      uint32_t primary_id = item.primary_identifier();
+      string description;
+      try {
+        description = name_index->describe_item(item, 0);
+      } catch (const exception& e) {
+        c->log.warning_f(
+            "Hardcore item legality audit [{}]: bank_slot={} item={} primary={:06X} describe failed: {}",
+            context,
+            z,
+            item.hex(),
+            primary_id,
+            e.what());
+      }
+
+      try {
+        size_t max_stack = item.max_stack_size(*limits);
+        size_t bank_amount = static_cast<size_t>(bank_item.amount);
+        if ((bank_amount == 0) || (bank_amount > max_stack)) {
+          c->log.warning_f(
+              "Hardcore item legality audit [{}]: bank_slot={} item={} primary={:06X} bank_amount={} max_stack={} desc={}",
+              context,
+              z,
+              item.hex(),
+              primary_id,
+              bank_amount,
+              max_stack,
+              description);
+        }
+      } catch (const exception& e) {
+        c->log.warning_f(
+            "Hardcore item legality audit [{}]: bank_slot={} item={} primary={:06X} bank stack check failed: {}",
+            context,
+            z,
+            item.hex(),
+            primary_id,
+            e.what());
+      }
+
+      if (item.data1[0] == 0x02) {
+        try {
+          uint16_t mag_level = item.compute_mag_level();
+          if (mag_level > 200) {
+            c->log.warning_f(
+                "Hardcore item legality audit [{}]: bank_slot={} mag={} primary={:06X} level={} desc={}",
+                context,
+                z,
+                item.hex(),
+                primary_id,
+                mag_level,
+                description);
+          }
+        } catch (const exception& e) {
+          c->log.warning_f(
+              "Hardcore item legality audit [{}]: bank_slot={} mag={} primary={:06X} mag-level check failed: {}",
+              context,
+              z,
+              item.hex(),
+              primary_id,
+              e.what());
+        }
+      }
+
+    } catch (const exception& e) {
+      c->log.warning_f(
+          "Hardcore item legality audit [{}]: bank_slot={} item={} primary_identifier failed: {}",
+          context,
+          z,
+          item.hex(),
+          e.what());
+    }
+  }
+
   for (auto slot : {EquipSlot::WEAPON, EquipSlot::ARMOR, EquipSlot::SHIELD, EquipSlot::MAG,
            EquipSlot::UNIT_1, EquipSlot::UNIT_2, EquipSlot::UNIT_3, EquipSlot::UNIT_4}) {
     try {
