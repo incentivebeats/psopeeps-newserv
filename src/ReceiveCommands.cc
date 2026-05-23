@@ -4698,6 +4698,30 @@ shared_ptr<Lobby> create_game_generic(
 
   size_t min_level = s->default_min_level_for_game(creator_c->version(), episode, difficulty);
 
+  if (s->enable_hardcore_mode && (creator_c->version() == Version::BB_V4)) {
+    if ((episode == Episode::EP2) && (difficulty != Difficulty::ULTIMATE)) {
+      creator_c->log.warning_f("Hardcore room blocked: Episode 2 is Ultimate-only");
+      send_message_box(creator_c, "$C6Hardcore Episode 2\nis only available\non Ultimate.");
+      return nullptr;
+    }
+    if ((episode == Episode::EP4) && (difficulty != Difficulty::ULTIMATE)) {
+      creator_c->log.warning_f("Hardcore room blocked: Episode 4 is Ultimate-only");
+      send_message_box(creator_c, "$C6Hardcore Episode 4\nis only available\non Ultimate.");
+      return nullptr;
+    }
+    if ((episode == Episode::EP2) && (creator_c->character_file()->disp.stats.level < 99)) {
+      creator_c->log.warning_f("Hardcore room blocked: Episode 2 Ultimate requires level 100");
+      send_message_box(creator_c, "$C6Hardcore Episode 2\nUltimate requires\nlevel 100 or above.");
+      return nullptr;
+    }
+    if ((episode == Episode::EP4) && (creator_c->character_file()->disp.stats.level < 119)) {
+      creator_c->log.warning_f("Hardcore room blocked: Episode 4 Ultimate requires level 120");
+      send_message_box(creator_c, "$C6Hardcore Episode 4\nUltimate requires\nlevel 120 or above.");
+      return nullptr;
+    }
+  }
+
+
   auto p = creator_c->character_file();
   if (!creator_c->login->account->check_flag(Account::Flag::FREE_JOIN_GAMES) && (min_level > p->disp.stats.level)) {
     // Note: We don't throw here because this is a situation players might encounter while playing the game normally
