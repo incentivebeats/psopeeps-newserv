@@ -2393,23 +2393,14 @@ static asio::awaitable<void> on_player_drop_item(shared_ptr<Client> c, Subcomman
     co_return;
   }
 
-  if (current_ship_is_hardcore_bb(c)) {
-    auto p = c->character_file();
-    try {
-      const auto& item = p->inventory.items[p->inventory.find_item(cmd.item_id)].data;
-      send_create_inventory_item_to_lobby(c, c->lobby_client_id, item);
-    } catch (const exception& e) {
-      c->log.warning_f("Hardcore drop block could not resync item {:08X}: {}", cmd.item_id, e.what());
-    }
-    send_message_box(c, "$C6Dropping items is disabled in Hardcore Mode.");
-    co_return;
-  }
-
   auto s = c->require_server_state();
   auto l = c->require_lobby();
   auto p = c->character_file();
   auto item = p->remove_item(cmd.item_id, 0, *s->item_stack_limits(c->version()));
-  l->add_item(cmd.floor, item, cmd.pos, nullptr, nullptr, 0x00F);
+
+  bool hardcore_owner_only_drop = current_ship_is_hardcore_bb(c);
+  uint16_t visibility_flags = hardcore_owner_only_drop ? (0x1000 | (1 << c->lobby_client_id)) : 0x00F;
+  l->add_item(cmd.floor, item, cmd.pos, nullptr, nullptr, visibility_flags);
 
   if (l->log.should_log(phosg::LogLevel::L_INFO)) {
     auto s = c->require_server_state();
@@ -2419,7 +2410,9 @@ static asio::awaitable<void> on_player_drop_item(shared_ptr<Client> c, Subcomman
     c->print_inventory();
   }
 
-  forward_subcommand(c, msg);
+  if (!hardcore_owner_only_drop) {
+    forward_subcommand(c, msg);
+  }
 }
 
 template <typename CmdT>
@@ -2531,11 +2524,6 @@ static asio::awaitable<void> on_drop_partial_stack_bb(shared_ptr<Client> c, Subc
     throw runtime_error("6xC3 command sent by incorrect client");
   }
 
-  if (current_ship_is_hardcore_bb(c)) {
-    send_message_box(c, "$C6Dropping Meseta or stacked items is disabled in Hardcore Mode.");
-    co_return;
-  }
-
   auto s = c->require_server_state();
   auto p = c->character_file();
   const auto& limits = *s->item_stack_limits(c->version());
@@ -2551,8 +2539,14 @@ static asio::awaitable<void> on_drop_partial_stack_bb(shared_ptr<Client> c, Subc
   // to correct for this (it will get removed again by the 6x29 handler)
   p->add_item(item, limits);
 
-  l->add_item(cmd.floor, item, cmd.pos, nullptr, nullptr, 0x00F);
-  send_drop_stacked_item_to_lobby(l, item, cmd.floor, cmd.pos);
+  bool hardcore_owner_only_drop = current_ship_is_hardcore_bb(c);
+  uint16_t visibility_flags = hardcore_owner_only_drop ? (0x1000 | (1 << c->lobby_client_id)) : 0x00F;
+  l->add_item(cmd.floor, item, cmd.pos, nullptr, nullptr, visibility_flags);
+  if (hardcore_owner_only_drop) {
+    send_drop_stacked_item_to_channel(s, c->channel, item, cmd.floor, cmd.pos);
+  } else {
+    send_drop_stacked_item_to_lobby(l, item, cmd.floor, cmd.pos);
+  }
 
   if (l->log.should_log(phosg::LogLevel::L_INFO)) {
     auto s = c->require_server_state();
