@@ -4906,6 +4906,79 @@ static void log_hardcore_inventory_legality(shared_ptr<Client> c, const char* co
     }
   }
 
+
+  auto log_material = [&](const char* name, PSOBBCharacterFile::MaterialType type, size_t warn_above) {
+    try {
+      size_t used = p->get_material_usage(type);
+      if (used > warn_above) {
+        c->log.warning_f(
+            "Hardcore item legality audit [{}]: material {} usage={} exceeds conservative limit={}",
+            context,
+            name,
+            used,
+            warn_above);
+      }
+      return used;
+    } catch (const exception& e) {
+      c->log.warning_f(
+          "Hardcore item legality audit [{}]: material {} usage check failed: {}",
+          context,
+          name,
+          e.what());
+      return static_cast<size_t>(0);
+    }
+  };
+
+  log_material("HP", PSOBBCharacterFile::MaterialType::HP, 125);
+  log_material("TP", PSOBBCharacterFile::MaterialType::TP, 125);
+  size_t pow_mats = log_material("POWER", PSOBBCharacterFile::MaterialType::POWER, 250);
+  size_t mind_mats = log_material("MIND", PSOBBCharacterFile::MaterialType::MIND, 250);
+  size_t evade_mats = log_material("EVADE", PSOBBCharacterFile::MaterialType::EVADE, 250);
+  size_t def_mats = log_material("DEF", PSOBBCharacterFile::MaterialType::DEF, 250);
+  size_t luck_mats = log_material("LUCK", PSOBBCharacterFile::MaterialType::LUCK, 100);
+
+  size_t non_hp_tp_mats = pow_mats + mind_mats + evade_mats + def_mats + luck_mats;
+  if (non_hp_tp_mats > 250) {
+    c->log.warning_f(
+        "Hardcore item legality audit [{}]: non-HP/TP material total={} exceeds conservative limit=250 "
+        "(pow={} mind={} evade={} def={} luck={})",
+        context,
+        non_hp_tp_mats,
+        pow_mats,
+        mind_mats,
+        evade_mats,
+        def_mats,
+        luck_mats);
+  }
+
+  try {
+    auto pmt = s->item_parameter_table(Version::BB_V4);
+    uint8_t char_class = p->disp.visual.char_class;
+
+    for (uint8_t tech_num = 0; tech_num < 0x13; tech_num++) {
+      uint8_t level = p->get_technique_level(tech_num);
+      if (level == 0xFF) {
+        continue;
+      }
+
+      uint8_t max_level = pmt->get_max_tech_level(char_class, tech_num);
+      if (level > max_level) {
+        c->log.warning_f(
+            "Hardcore item legality audit [{}]: technique={} level={} exceeds class max={} char_class={}",
+            context,
+            tech_num,
+            static_cast<size_t>(level + 1),
+            static_cast<size_t>(max_level + 1),
+            static_cast<size_t>(char_class));
+      }
+    }
+  } catch (const exception& e) {
+    c->log.warning_f(
+        "Hardcore item legality audit [{}]: technique legality check failed: {}",
+        context,
+        e.what());
+  }
+
   for (auto slot : {EquipSlot::WEAPON, EquipSlot::ARMOR, EquipSlot::SHIELD, EquipSlot::MAG,
            EquipSlot::UNIT_1, EquipSlot::UNIT_2, EquipSlot::UNIT_3, EquipSlot::UNIT_4}) {
     try {
