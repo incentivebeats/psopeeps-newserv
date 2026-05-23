@@ -217,6 +217,99 @@ static bool current_ship_is_hardcore_bb(shared_ptr<Client> c) {
   }
 }
 
+
+static const char* hardcore_stats_episode_name(Episode episode) {
+  switch (episode) {
+    case Episode::EP1:
+      return "EP1";
+    case Episode::EP2:
+      return "EP2";
+    case Episode::EP3:
+      return "EP3";
+    case Episode::EP4:
+      return "EP4";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+static bool append_hardcore_stats_enemy_kill_event(
+    shared_ptr<Client> c,
+    EnemyType enemy_type,
+    uint16_t enemy_index,
+    uint8_t floor,
+    Episode episode,
+    Difficulty difficulty) {
+  try {
+    if (!current_ship_is_hardcore_bb(c)) {
+      return true;
+    }
+
+    {
+      ifstream hardcore_f(c->character_filename() + ".hardcore");
+      if (!hardcore_f.good()) {
+        return true;
+      }
+    }
+
+    ofstream f("system/hardcore-stats/events.jsonl", ios::out | ios::app);
+    if (!f.good()) {
+      c->log.warning_f("Hardcore stats event: failed to open system/hardcore-stats/events.jsonl");
+      return false;
+    }
+
+    uint32_t account_id = 0;
+    string username;
+    if (c->login) {
+      if (c->login->account) {
+        account_id = c->login->account->account_id;
+      }
+      if (c->login->bb_license) {
+        username = c->login->bb_license->username;
+      }
+    }
+
+    auto p = c->character_file(false);
+    string character_name;
+    uint32_t level = 0;
+    uint32_t total_exp = 0;
+    if (p) {
+      character_name = p->disp.name.decode(c->language());
+      level = p->disp.stats.level.load() + 1;
+      total_exp = p->disp.stats.exp.load();
+    }
+
+    f << "{"
+      << "\"event_type\":\"enemy_kill\","
+      << "\"time_epoch\":" << static_cast<long long>(time(nullptr)) << ","
+      << "\"account_id\":" << account_id << ","
+      << "\"username\":\"" << json_escape_for_hardcore_ledger(username) << "\","
+      << "\"character_slot\":" << c->bb_character_index << ","
+      << "\"character_file\":\"" << json_escape_for_hardcore_ledger(c->character_filename()) << "\","
+      << "\"character_name\":\"" << json_escape_for_hardcore_ledger(character_name) << "\","
+      << "\"level\":" << level << ","
+      << "\"total_exp\":" << total_exp << ","
+      << "\"enemy_type\":\"" << phosg::name_for_enum(enemy_type) << "\","
+      << "\"enemy_index\":" << enemy_index << ","
+      << "\"floor\":" << static_cast<size_t>(floor) << ","
+      << "\"episode\":\"" << hardcore_stats_episode_name(episode) << "\","
+      << "\"difficulty\":\"" << name_for_difficulty(difficulty) << "\""
+      << "}\n";
+
+    if (!f.good()) {
+      c->log.warning_f("Hardcore stats event: write failed for {}", c->character_filename());
+      return false;
+    }
+
+    return true;
+
+  } catch (const exception& e) {
+    c->log.warning_f("Hardcore stats enemy kill event failed: {}", e.what());
+    return false;
+  }
+}
+
+
 static bool mark_bb_character_hardcore_dead_for_subcommands(shared_ptr<Client> c, const char* reason) {
   string filename = bb_hardcore_dead_filename_for_subcommands(c);
 
@@ -4417,6 +4510,8 @@ static asio::awaitable<void> on_enemy_exp_request_bb(shared_ptr<Client> c, Subco
 
     // Update kill counts on unsealable items, but only for the player who actually killed the enemy
     if (ene_st->last_hit_by_client_id(client_id)) {
+      append_hardcore_stats_enemy_kill_event(lc, type, cmd.enemy_index, lc->floor, episode, l->difficulty);
+
       auto& inventory = lc->character_file()->inventory;
       for (size_t z = 0; z < inventory.num_items; z++) {
         auto& item = inventory.items[z];
