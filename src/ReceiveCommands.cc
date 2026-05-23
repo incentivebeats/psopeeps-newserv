@@ -4731,24 +4731,30 @@ shared_ptr<Lobby> create_game_generic(
   size_t min_level = s->default_min_level_for_game(creator_c->version(), episode, difficulty);
 
   if (s->enable_hardcore_mode && (creator_c->version() == Version::BB_V4)) {
-    if ((episode == Episode::EP2) && (difficulty != Difficulty::ULTIMATE)) {
-      creator_c->log.warning_f("Hardcore room blocked: Episode 2 is Ultimate-only");
-      send_message_box(creator_c, "$C6Hardcore Episode 2\nis only available\non Ultimate.");
+    if (((episode == Episode::EP2) || (episode == Episode::EP4)) &&
+        ((difficulty == Difficulty::NORMAL) || (difficulty == Difficulty::HARD))) {
+      creator_c->log.warning_f(
+          "Hardcore room blocked: Episode {} is unavailable below Very Hard",
+          (episode == Episode::EP2) ? 2 : 4);
+      send_message_box(creator_c,
+          (episode == Episode::EP2)
+              ? "$C6Hardcore Episode 2\nis available on\nVery Hard and Ultimate."
+              : "$C6Hardcore Episode 4\nis available on\nVery Hard and Ultimate.");
       return nullptr;
     }
-    if ((episode == Episode::EP4) && (difficulty != Difficulty::ULTIMATE)) {
-      creator_c->log.warning_f("Hardcore room blocked: Episode 4 is Ultimate-only");
-      send_message_box(creator_c, "$C6Hardcore Episode 4\nis only available\non Ultimate.");
-      return nullptr;
-    }
-    if ((episode == Episode::EP2) && (creator_c->character_file()->disp.stats.level < 99)) {
-      creator_c->log.warning_f("Hardcore room blocked: Episode 2 Ultimate requires level 100");
-      send_message_box(creator_c, "$C6Hardcore Episode 2\nUltimate requires\nlevel 100 or above.");
-      return nullptr;
-    }
-    if ((episode == Episode::EP4) && (creator_c->character_file()->disp.stats.level < 119)) {
-      creator_c->log.warning_f("Hardcore room blocked: Episode 4 Ultimate requires level 120");
-      send_message_box(creator_c, "$C6Hardcore Episode 4\nUltimate requires\nlevel 120 or above.");
+
+    if (((episode == Episode::EP2) || (episode == Episode::EP4)) &&
+        (min_level > creator_c->character_file()->disp.stats.level)) {
+      creator_c->log.warning_f(
+          "Hardcore room blocked: Episode {} {} requires level {}",
+          (episode == Episode::EP2) ? 2 : 4,
+          name_for_difficulty(difficulty),
+          min_level + 1);
+      send_message_box(creator_c, std::format(
+          "$C6Hardcore Episode {}\n{} requires\nlevel {} or above.",
+          (episode == Episode::EP2) ? 2 : 4,
+          name_for_difficulty(difficulty),
+          min_level + 1));
       return nullptr;
     }
   }
