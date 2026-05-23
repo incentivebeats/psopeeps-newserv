@@ -386,6 +386,68 @@ static asio::awaitable<void> send_auto_patches_if_needed(shared_ptr<Client> c) {
   }
 }
 
+
+static asio::awaitable<void> log_bb_hardcore_client_integrity_probe(shared_ptr<Client> c) {
+  auto s = c->require_server_state();
+
+  if (!s->enable_hardcore_mode || (c->version() != Version::BB_V4)) {
+    co_return;
+  }
+  if (!c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL)) {
+    c->log.warning_f("Hardcore BB integrity probe skipped: client does not support send_function_call");
+    co_return;
+  }
+
+  struct CheckRange {
+    const char* name;
+    uint32_t address;
+    uint32_t size;
+  };
+
+  static const CheckRange ranges[] = {
+      {"pe-header", 0x00400000, 0x0000E000},
+      {"set-palette-hotkey", 0x0068CDE0, 0x00000080},
+      {"hotkey-block-2", 0x00710390, 0x000000F0},
+      {"hotkey-block-1", 0x00748940, 0x000001F0},
+  };
+
+  shared_ptr<const ClientFunctionIndex::Function> code;
+  try {
+    code = s->client_functions->get("ReturnToken", SPECIFIC_VERSION_X86_INDETERMINATE);
+  } catch (const exception& e) {
+    c->log.warning_f("Hardcore BB integrity probe skipped: ReturnToken unavailable: {}", e.what());
+    co_return;
+  }
+
+  uint32_t token = c->login ? (c->login->account->account_id ^ 0x48434421) : 0x48434421;
+
+  for (const auto& range : ranges) {
+    try {
+      unordered_map<string, uint32_t> label_writes{{"token", token}};
+      auto resp = co_await send_function_call(
+          c, code, label_writes, nullptr, 0, range.address, range.size, 0, false);
+
+      c->log.info_f(
+          "Hardcore BB integrity probe: {} addr={:08X} size={:08X} checksum={:08X} return={:08X} expected_return={:08X}",
+          range.name,
+          range.address,
+          range.size,
+          resp.checksum,
+          resp.return_value,
+          token);
+
+    } catch (const exception& e) {
+      c->log.warning_f(
+          "Hardcore BB integrity probe failed for {} addr={:08X} size={:08X}: {}",
+          range.name,
+          range.address,
+          range.size,
+          e.what());
+    }
+  }
+}
+
+
 asio::awaitable<void> start_login_server_procedure(shared_ptr<Client> c) {
   auto s = c->require_server_state();
 
@@ -2641,6 +2703,7 @@ static asio::awaitable<void> on_10_main_menu(shared_ptr<Client> c, uint32_t item
   switch (item_id) {
     case MainMenuItemID::GO_TO_LOBBY: {
       co_await send_auto_patches_if_needed(c);
+      co_await log_bb_hardcore_client_integrity_probe(c);
       co_await enable_save_if_needed(c);
       send_lobby_list(c);
       if (is_pre_v1(c->version())) {
