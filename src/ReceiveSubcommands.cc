@@ -4450,6 +4450,15 @@ static asio::awaitable<void> on_enemy_exp_request_bb(shared_ptr<Client> c, Subco
       s->battle_params, l->quest, type, episode, l->difficulty, ene_st->super_ene->floor, l->mode == GameMode::SOLO);
   l->log.info_f("Base EXP for this enemy ({}) is {:g}", phosg::name_for_enum(type), base_exp);
 
+  // Hardcore stats: write exactly one kill event per enemy, credited to the last-hit client.
+  for (size_t kill_client_id = 0; kill_client_id < 4; kill_client_id++) {
+    auto kill_c = l->clients[kill_client_id];
+    if (kill_c && ene_st->last_hit_by_client_id(kill_client_id)) {
+      append_hardcore_stats_enemy_kill_event(kill_c, type, cmd.enemy_index, kill_c->floor, episode, l->difficulty);
+      break;
+    }
+  }
+
   for (size_t client_id = 0; client_id < 4; client_id++) {
     auto lc = l->clients[client_id];
     if (!lc) {
@@ -4510,8 +4519,6 @@ static asio::awaitable<void> on_enemy_exp_request_bb(shared_ptr<Client> c, Subco
 
     // Update kill counts on unsealable items, but only for the player who actually killed the enemy
     if (ene_st->last_hit_by_client_id(client_id)) {
-      append_hardcore_stats_enemy_kill_event(lc, type, cmd.enemy_index, lc->floor, episode, l->difficulty);
-
       auto& inventory = lc->character_file()->inventory;
       for (size_t z = 0; z < inventory.num_items; z++) {
         auto& item = inventory.items[z];
