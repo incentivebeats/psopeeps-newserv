@@ -2394,6 +2394,13 @@ static asio::awaitable<void> on_player_drop_item(shared_ptr<Client> c, Subcomman
   }
 
   if (current_ship_is_hardcore_bb(c)) {
+    auto p = c->character_file();
+    try {
+      const auto& item = p->inventory.items[p->inventory.find_item(cmd.item_id)].data;
+      send_create_inventory_item_to_lobby(c, c->lobby_client_id, item);
+    } catch (const exception& e) {
+      c->log.warning_f("Hardcore drop block could not resync item {:08X}: {}", cmd.item_id, e.what());
+    }
     send_message_box(c, "$C6Dropping items is disabled in Hardcore Mode.");
     co_return;
   }
