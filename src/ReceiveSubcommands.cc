@@ -3731,6 +3731,12 @@ static asio::awaitable<void> dispatch_gc_v3_exp_patch(shared_ptr<Client> c) {
     auto fn = make_shared<ClientFunctionIndex::Function>(*base_fn);
 
     for (size_t z = 0; z < num_exp_labels; z++) {
+      // GC V3 EP1 mitigation: leave known-problem Forest/Hilde rows at 1x.
+      // Rows 5 and 52 have shown 0-damage behavior when boosted in GC EP1/TTF testing.
+      if ((l->episode == Episode::EP1) && ((z == 5) || (z == 52))) {
+        continue;
+      }
+
       string label = std::format("exp_{:03}", z);
       size_t offset = fn->label_offsets.at(label);
       if (offset > fn->code.size() - 4) {
