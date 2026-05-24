@@ -3715,12 +3715,12 @@ static asio::awaitable<void> dispatch_gc_v3_exp_patch(shared_ptr<Client> c) {
   switch (l->episode) {
     case Episode::EP1:
       key = "PsoPeepsEP1EXP_internal";
-      num_exp_labels = 204;
+      num_exp_labels = 374;
       break;
     case Episode::EP2:
-      key = "PsoPeepsEP2EXP_internal";
-      num_exp_labels = 239;
-      break;
+      // The known-good GC disc patch does not modify BattleParamEntry_lab_on.dat.
+      // Leave Episode 2 untouched until it is researched separately.
+      co_return;
     default:
       co_return;
   }
@@ -3731,14 +3731,6 @@ static asio::awaitable<void> dispatch_gc_v3_exp_patch(shared_ptr<Client> c) {
     auto fn = make_shared<ClientFunctionIndex::Function>(*base_fn);
 
     for (size_t z = 0; z < num_exp_labels; z++) {
-      // GC V3 EP1 mitigation: leave known-problem Forest/Hilde rows at 1x.
-      // Rows 5 and 52 fixed the first TTF Hilde; related block-offset rows are
-      // included for the Dragon-gate Hilde variants that still show 0-damage.
-      if ((l->episode == Episode::EP1) &&
-          ((z == 5) || (z == 52) || (z == 56) || (z == 103) ||
-           (z == 107) || (z == 154) || (z == 158))) {
-        continue;
-      }
 
       string label = std::format("exp_{:03}", z);
       size_t offset = fn->label_offsets.at(label);
