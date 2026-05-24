@@ -3738,10 +3738,10 @@ static asio::awaitable<void> dispatch_gc_v3_exp_patch(shared_ptr<Client> c) {
       }
 
       uint32_t base_exp =
-          static_cast<uint32_t>(static_cast<uint8_t>(fn->code[offset])) |
-          (static_cast<uint32_t>(static_cast<uint8_t>(fn->code[offset + 1])) << 8) |
-          (static_cast<uint32_t>(static_cast<uint8_t>(fn->code[offset + 2])) << 16) |
-          (static_cast<uint32_t>(static_cast<uint8_t>(fn->code[offset + 3])) << 24);
+          (static_cast<uint32_t>(static_cast<uint8_t>(fn->code[offset])) << 24) |
+          (static_cast<uint32_t>(static_cast<uint8_t>(fn->code[offset + 1])) << 16) |
+          (static_cast<uint32_t>(static_cast<uint8_t>(fn->code[offset + 2])) << 8) |
+          static_cast<uint32_t>(static_cast<uint8_t>(fn->code[offset + 3]));
 
       uint64_t scaled_exp = static_cast<uint64_t>(base_exp) *
           static_cast<uint64_t>(server_state->gc_v3_exp_multiplier);
@@ -3749,10 +3749,10 @@ static asio::awaitable<void> dispatch_gc_v3_exp_patch(shared_ptr<Client> c) {
         scaled_exp = 0xFFFFFFFFULL;
       }
 
-      fn->code[offset] = static_cast<char>(scaled_exp & 0xFF);
-      fn->code[offset + 1] = static_cast<char>((scaled_exp >> 8) & 0xFF);
-      fn->code[offset + 2] = static_cast<char>((scaled_exp >> 16) & 0xFF);
-      fn->code[offset + 3] = static_cast<char>((scaled_exp >> 24) & 0xFF);
+      fn->code[offset] = static_cast<char>((scaled_exp >> 24) & 0xFF);
+      fn->code[offset + 1] = static_cast<char>((scaled_exp >> 16) & 0xFF);
+      fn->code[offset + 2] = static_cast<char>((scaled_exp >> 8) & 0xFF);
+      fn->code[offset + 3] = static_cast<char>(scaled_exp & 0xFF);
     }
 
     co_await send_function_call(c, fn);
