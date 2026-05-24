@@ -1139,6 +1139,7 @@ void ServerState::load_config_early() {
 
   this->bb_global_exp_multiplier = this->config_json->get_float("BBGlobalEXPMultiplier", 1.0f);
   this->dc_v2_exp_multiplier = std::max<int64_t>(1, this->config_json->get_int("DCV2EXPMultiplier", 1));
+  this->gc_v3_exp_multiplier = std::max<int64_t>(1, this->config_json->get_int("GCV3EXPMultiplier", 1));
   this->exp_share_multiplier = this->config_json->get_float("BBEXPShareMultiplier", 0.5f);
   this->server_global_drop_rate_multiplier = this->config_json->get_float("ServerGlobalDropRateMultiplier", 1.0f);
 
