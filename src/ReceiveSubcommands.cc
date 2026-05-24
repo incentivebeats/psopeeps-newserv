@@ -3732,8 +3732,11 @@ static asio::awaitable<void> dispatch_gc_v3_exp_patch(shared_ptr<Client> c) {
 
     for (size_t z = 0; z < num_exp_labels; z++) {
       // GC V3 EP1 mitigation: leave known-problem Forest/Hilde rows at 1x.
-      // Rows 5 and 52 have shown 0-damage behavior when boosted in GC EP1/TTF testing.
-      if ((l->episode == Episode::EP1) && ((z == 5) || (z == 52))) {
+      // Rows 5 and 52 fixed the first TTF Hilde; related block-offset rows are
+      // included for the Dragon-gate Hilde variants that still show 0-damage.
+      if ((l->episode == Episode::EP1) &&
+          ((z == 5) || (z == 52) || (z == 56) || (z == 103) ||
+           (z == 107) || (z == 154) || (z == 158))) {
         continue;
       }
 
