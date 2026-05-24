@@ -27,7 +27,6 @@
 
 #include "StaticGameData.hh"
 #include "Text.hh"
-#include <ctime>
 
 using namespace std;
 
@@ -49,7 +48,7 @@ static bool bb_character_is_test_taint_grandfathered(shared_ptr<Client> c) {
   return file_exists_for_bb_taint(bb_test_taint_grandfather_filename(c));
 }
 
-static string bb_hardcore_filename(shared_ptr<const Client> c) {
+static string bb_hardcore_filename(shared_ptr<Client> c) {
   return c->character_filename() + ".hardcore";
 }
 
@@ -61,7 +60,7 @@ static string bb_hardcore_dead_filename(shared_ptr<Client> c) {
   return c->character_filename() + ".hardcore-dead";
 }
 
-static bool bb_character_is_hardcore(shared_ptr<const Client> c) {
+static bool bb_character_is_hardcore(shared_ptr<Client> c) {
   return file_exists_for_bb_taint(bb_hardcore_filename(c));
 }
 
@@ -314,13 +313,8 @@ static shared_ptr<const Menu> proxy_options_menu_for_client(shared_ptr<const Cli
     add_flag_option(ProxyOptionsMenuItemID::SWITCH_ASSIST, Client::Flag::SWITCH_ASSIST_ENABLED,
         "Switch assist", "Automatically unlock\nmulti-player doors\nwhen you step on\nany of the door\'s\nswitches");
   }
-  bool allow_cheat_options =
-      (s->cheat_mode_behavior != ServerState::BehaviorSwitch::OFF) ||
-      c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE);
-  if (s->enable_hardcore_mode && (c->version() == Version::BB_V4) && bb_character_is_hardcore(c)) {
-    allow_cheat_options = false;
-  }
-  if (allow_cheat_options) {
+  if ((s->cheat_mode_behavior != ServerState::BehaviorSwitch::OFF) ||
+      c->login->account->check_flag(Account::Flag::CHEAT_ANYWHERE)) {
     if (!is_ep3(c->version())) {
       add_flag_option(ProxyOptionsMenuItemID::INFINITE_HP, Client::Flag::INFINITE_HP_ENABLED,
           "Infinite HP", "Enable automatic HP\nrestoration when\nyou are hit by an\nenemy or trap\n\nCannot revive you\nfrom one-hit kills");
@@ -422,7 +416,7 @@ static asio::awaitable<bool> enforce_bb_hardcore_client_integrity_probe(shared_p
   };
 
   static const CheckRange ranges[] = {
-      {"pe-header", 0x00400000, 0x0000E000, 0xC4D24DD1},
+      {"pe-header", 0x00400000, 0x0000E000, 0x02D05B6B},
       {"set-palette-hotkey", 0x0068CDE0, 0x00000080, 0x3949F1D9},
       {"hotkey-block-2", 0x00710390, 0x000000F0, 0x5F722787},
       {"hotkey-block-1", 0x00748940, 0x000001F0, 0x43386845},
@@ -4709,523 +4703,6 @@ static asio::awaitable<void> on_C9_XB(shared_ptr<Client> c, Channel::Message& ms
   co_return;
 }
 
-
-static string json_escape_for_hardcore_stats(const string& in) {
-  string ret;
-  ret.reserve(in.size() + 16);
-  for (char ch : in) {
-    switch (ch) {
-      case '"':
-        ret += "\\\"";
-        break;
-      case '\\':
-        ret += "\\\\";
-        break;
-      case '\n':
-        ret += "\\n";
-        break;
-      case '\r':
-        ret += "\\r";
-        break;
-      case '\t':
-        ret += "\\t";
-        break;
-      default:
-        ret += ch;
-    }
-  }
-  return ret;
-}
-
-static bool hardcore_stats_character_is_dead(shared_ptr<Client> c) {
-  try {
-    ifstream f(c->character_filename() + ".hardcore-dead");
-    return f.good();
-  } catch (const exception&) {
-    return false;
-  }
-}
-
-static void append_hardcore_stats_item_json(
-    ostream& out,
-    shared_ptr<ServerState> s,
-    const ItemData& item,
-    size_t amount,
-    const char* extra_key = nullptr,
-    size_t extra_value = 0) {
-  auto name_index = s->item_name_index(Version::BB_V4);
-
-  string hex;
-  string description;
-  uint32_t primary_id = 0;
-  try {
-    hex = item.hex();
-  } catch (const exception& e) {
-    hex = std::format("!hex-error:{}", e.what());
-  }
-
-  try {
-    primary_id = item.primary_identifier();
-  } catch (const exception&) {
-    primary_id = 0;
-  }
-
-  try {
-    description = name_index->describe_item(item, 0);
-  } catch (const exception& e) {
-    description = std::format("!describe-error:{}", e.what());
-  }
-
-  out << "{"
-      << "\"hex\":\"" << json_escape_for_hardcore_stats(hex) << "\","
-      << "\"primary_id\":\"" << std::format("{:08X}", primary_id) << "\","
-      << "\"description\":\"" << json_escape_for_hardcore_stats(description) << "\","
-      << "\"amount\":" << amount;
-
-  if (extra_key) {
-    out << ",\"" << extra_key << "\":" << extra_value;
-  }
-
-  out << "}";
-}
-
-static bool append_hardcore_stats_snapshot(shared_ptr<Client> c, const char* context) {
-  try {
-    auto s = c->require_server_state();
-    if (!s->enable_hardcore_mode || (c->version() != Version::BB_V4) || !bb_character_is_hardcore(c)) {
-      return true;
-    }
-
-    auto p = c->character_file();
-    if (!p->creation_timestamp.load()) {
-      p->creation_timestamp = static_cast<uint32_t>(time(nullptr));
-    }
-
-    auto limits = s->item_stack_limits(Version::BB_V4);
-    const auto& stats = p->disp.stats.char_stats;
-
-    ofstream f("system/hardcore-stats/snapshots.jsonl", ios::out | ios::app);
-    if (!f.good()) {
-      c->log.warning_f("Hardcore stats snapshot: failed to open system/hardcore-stats/snapshots.jsonl");
-      return false;
-    }
-
-    uint32_t account_id = 0;
-    string username;
-    if (c->login) {
-      if (c->login->account) {
-        account_id = c->login->account->account_id;
-      }
-      if (c->login->bb_license) {
-        username = c->login->bb_license->username;
-      }
-    }
-
-    string character_name = p->disp.name.decode(c->language());
-    uint8_t char_class = p->disp.visual.char_class;
-    uint8_t section_id = p->disp.visual.section_id;
-
-    f << "{"
-      << "\"event_type\":\"snapshot\","
-      << "\"time_epoch\":" << static_cast<long long>(time(nullptr)) << ","
-      << "\"context\":\"" << json_escape_for_hardcore_stats(context ? context : "") << "\","
-      << "\"account_id\":" << account_id << ","
-      << "\"username\":\"" << json_escape_for_hardcore_stats(username) << "\","
-      << "\"character_slot\":" << c->bb_character_index << ","
-      << "\"character_creation_timestamp\":" << static_cast<uint64_t>(p->creation_timestamp.load()) << ","
-      << "\"character_file\":\"" << json_escape_for_hardcore_stats(c->character_filename()) << "\","
-      << "\"character_name\":\"" << json_escape_for_hardcore_stats(character_name) << "\","
-      << "\"character_class\":\"" << json_escape_for_hardcore_stats(name_for_char_class(char_class)) << "\","
-      << "\"character_class_id\":" << static_cast<size_t>(char_class) << ","
-      << "\"section_id\":\"" << json_escape_for_hardcore_stats(name_for_section_id(section_id)) << "\","
-      << "\"section_id_id\":" << static_cast<size_t>(section_id) << ","
-      << "\"level\":" << static_cast<size_t>(p->disp.stats.level.load() + 1) << ","
-      << "\"total_exp\":" << static_cast<uint64_t>(p->disp.stats.exp.load()) << ","
-      << "\"play_time_seconds\":" << static_cast<uint64_t>(p->play_time_seconds.load()) << ","
-      << "\"alive\":" << (hardcore_stats_character_is_dead(c) ? "false" : "true") << ","
-      << "\"character_stats\":{"
-      << "\"ATP\":" << stats.atp.load() << ","
-      << "\"MST\":" << stats.mst.load() << ","
-      << "\"EVP\":" << stats.evp.load() << ","
-      << "\"HP\":" << stats.hp.load() << ","
-      << "\"DFP\":" << stats.dfp.load() << ","
-      << "\"ATA\":" << stats.ata.load() << ","
-      << "\"LCK\":" << stats.lck.load()
-      << "},";
-
-    f << "\"mag\":";
-    try {
-      const auto& mag_item = p->inventory.items[p->inventory.find_equipped_item(EquipSlot::MAG)].data;
-      append_hardcore_stats_item_json(f, s, mag_item, 1, "level", mag_item.compute_mag_level());
-      f << ",\"mag_stats\":{"
-        << "\"DEF\":" << (mag_item.data1w[2] / 100) << ","
-        << "\"POW\":" << (mag_item.data1w[3] / 100) << ","
-        << "\"DEX\":" << (mag_item.data1w[4] / 100) << ","
-        << "\"MIND\":" << (mag_item.data1w[5] / 100)
-        << "},";
-    } catch (const exception&) {
-      f << "null,\"mag_stats\":{},";
-    }
-
-    f << "\"inventory\":[";
-    size_t inv_count = min<size_t>(p->inventory.num_items, p->inventory.items.size());
-    bool first = true;
-    for (size_t z = 0; z < inv_count; z++) {
-      const auto& inv_item = p->inventory.items[z];
-      const auto& item = inv_item.data;
-      if (item.empty()) {
-        continue;
-      }
-
-      size_t amount = 1;
-      try {
-        amount = item.stack_size(*limits);
-      } catch (const exception&) {
-      }
-
-      if (!first) {
-        f << ",";
-      }
-      first = false;
-
-      f << "{"
-        << "\"slot\":" << z << ","
-        << "\"equipped\":" << ((inv_item.flags & 0x00000008) ? "true" : "false") << ","
-        << "\"item\":";
-      append_hardcore_stats_item_json(f, s, item, amount);
-      f << "}";
-    }
-    f << "],";
-
-    f << "\"bank\":[";
-    size_t bank_num_items = static_cast<size_t>(p->bank.num_items);
-    size_t bank_count = min<size_t>(bank_num_items, p->bank.items.size());
-    first = true;
-    for (size_t z = 0; z < bank_count; z++) {
-      const auto& bank_item = p->bank.items[z];
-      const auto& item = bank_item.data;
-      if (item.empty()) {
-        continue;
-      }
-
-      if (!first) {
-        f << ",";
-      }
-      first = false;
-
-      f << "{"
-        << "\"slot\":" << z << ","
-        << "\"item\":";
-      append_hardcore_stats_item_json(f, s, item, static_cast<size_t>(bank_item.amount));
-      f << "}";
-    }
-    f << "]";
-
-    f << "}\n";
-
-    if (!f.good()) {
-      c->log.warning_f("Hardcore stats snapshot: write failed for {}", c->character_filename());
-      return false;
-    }
-
-    c->log.info_f("Hardcore stats snapshot: wrote {} snapshot for {}", context ? context : "", c->character_filename());
-    return true;
-
-  } catch (const exception& e) {
-    c->log.warning_f("Hardcore stats snapshot failed: {}", e.what());
-    return false;
-  }
-}
-
-
-static void log_hardcore_inventory_legality(shared_ptr<Client> c, const char* context) {
-  auto s = c->require_server_state();
-
-  if (!s->enable_hardcore_mode || (c->version() != Version::BB_V4) || !bb_character_is_hardcore(c)) {
-    return;
-  }
-
-  auto p = c->character_file();
-  const auto& inv = p->inventory;
-  auto limits = s->item_stack_limits(Version::BB_V4);
-  auto name_index = s->item_name_index(Version::BB_V4);
-
-  if (inv.num_items > inv.items.size()) {
-    c->log.warning_f(
-        "Hardcore item legality audit [{}]: inventory num_items={} exceeds slots={}",
-        context,
-        inv.num_items,
-        inv.items.size());
-  }
-
-  size_t count = (inv.num_items < inv.items.size()) ? inv.num_items : inv.items.size();
-
-  for (size_t z = 0; z < count; z++) {
-    const auto& inv_item = inv.items[z];
-    const auto& item = inv_item.data;
-
-    if (item.empty()) {
-      continue;
-    }
-
-    try {
-      uint32_t primary_id = item.primary_identifier();
-      string description;
-      try {
-        description = name_index->describe_item(item, 0);
-      } catch (const exception& e) {
-        c->log.warning_f(
-            "Hardcore item legality audit [{}]: slot={} item={} primary={:06X} describe failed: {}",
-            context,
-            z,
-            item.hex(),
-            primary_id,
-            e.what());
-      }
-
-      try {
-        size_t max_stack = item.max_stack_size(*limits);
-        size_t stack_size = item.stack_size(*limits);
-        if (stack_size > max_stack) {
-          c->log.warning_f(
-              "Hardcore item legality audit [{}]: slot={} item={} primary={:06X} stack_size={} max_stack={} desc={}",
-              context,
-              z,
-              item.hex(),
-              primary_id,
-              stack_size,
-              max_stack,
-              description);
-        }
-      } catch (const exception& e) {
-        c->log.warning_f(
-            "Hardcore item legality audit [{}]: slot={} item={} primary={:06X} stack check failed: {}",
-            context,
-            z,
-            item.hex(),
-            primary_id,
-            e.what());
-      }
-
-      if (item.data1[0] == 0x02) {
-        try {
-          uint16_t mag_level = item.compute_mag_level();
-          if (mag_level > 200) {
-            c->log.warning_f(
-                "Hardcore item legality audit [{}]: slot={} mag={} primary={:06X} level={} desc={}",
-                context,
-                z,
-                item.hex(),
-                primary_id,
-                mag_level,
-                description);
-          }
-        } catch (const exception& e) {
-          c->log.warning_f(
-              "Hardcore item legality audit [{}]: slot={} mag={} primary={:06X} mag-level check failed: {}",
-              context,
-              z,
-              item.hex(),
-              primary_id,
-              e.what());
-        }
-      }
-
-    } catch (const exception& e) {
-      c->log.warning_f(
-          "Hardcore item legality audit [{}]: slot={} item={} primary_identifier failed: {}",
-          context,
-          z,
-          item.hex(),
-          e.what());
-    }
-  }
-
-
-  const auto& bank = p->bank;
-
-  if (bank.num_items > bank.items.size()) {
-    c->log.warning_f(
-        "Hardcore item legality audit [{}]: bank num_items={} exceeds slots={}",
-        context,
-        bank.num_items,
-        bank.items.size());
-  }
-
-  size_t bank_num_items = static_cast<size_t>(bank.num_items);
-  size_t bank_count = (bank_num_items < bank.items.size()) ? bank_num_items : bank.items.size();
-
-  for (size_t z = 0; z < bank_count; z++) {
-    const auto& bank_item = bank.items[z];
-    const auto& item = bank_item.data;
-
-    if (item.empty()) {
-      continue;
-    }
-
-    try {
-      uint32_t primary_id = item.primary_identifier();
-      string description;
-      try {
-        description = name_index->describe_item(item, 0);
-      } catch (const exception& e) {
-        c->log.warning_f(
-            "Hardcore item legality audit [{}]: bank_slot={} item={} primary={:06X} describe failed: {}",
-            context,
-            z,
-            item.hex(),
-            primary_id,
-            e.what());
-      }
-
-      try {
-        size_t max_stack = item.max_stack_size(*limits);
-        size_t bank_amount = static_cast<size_t>(bank_item.amount);
-        if ((bank_amount == 0) || (bank_amount > max_stack)) {
-          c->log.warning_f(
-              "Hardcore item legality audit [{}]: bank_slot={} item={} primary={:06X} bank_amount={} max_stack={} desc={}",
-              context,
-              z,
-              item.hex(),
-              primary_id,
-              bank_amount,
-              max_stack,
-              description);
-        }
-      } catch (const exception& e) {
-        c->log.warning_f(
-            "Hardcore item legality audit [{}]: bank_slot={} item={} primary={:06X} bank stack check failed: {}",
-            context,
-            z,
-            item.hex(),
-            primary_id,
-            e.what());
-      }
-
-      if (item.data1[0] == 0x02) {
-        try {
-          uint16_t mag_level = item.compute_mag_level();
-          if (mag_level > 200) {
-            c->log.warning_f(
-                "Hardcore item legality audit [{}]: bank_slot={} mag={} primary={:06X} level={} desc={}",
-                context,
-                z,
-                item.hex(),
-                primary_id,
-                mag_level,
-                description);
-          }
-        } catch (const exception& e) {
-          c->log.warning_f(
-              "Hardcore item legality audit [{}]: bank_slot={} mag={} primary={:06X} mag-level check failed: {}",
-              context,
-              z,
-              item.hex(),
-              primary_id,
-              e.what());
-        }
-      }
-
-    } catch (const exception& e) {
-      c->log.warning_f(
-          "Hardcore item legality audit [{}]: bank_slot={} item={} primary_identifier failed: {}",
-          context,
-          z,
-          item.hex(),
-          e.what());
-    }
-  }
-
-
-  auto log_material = [&](const char* name, PSOBBCharacterFile::MaterialType type, size_t warn_above) {
-    try {
-      size_t used = p->get_material_usage(type);
-      if (used > warn_above) {
-        c->log.warning_f(
-            "Hardcore item legality audit [{}]: material {} usage={} exceeds conservative limit={}",
-            context,
-            name,
-            used,
-            warn_above);
-      }
-      return used;
-    } catch (const exception& e) {
-      c->log.warning_f(
-          "Hardcore item legality audit [{}]: material {} usage check failed: {}",
-          context,
-          name,
-          e.what());
-      return static_cast<size_t>(0);
-    }
-  };
-
-  log_material("HP", PSOBBCharacterFile::MaterialType::HP, 125);
-  log_material("TP", PSOBBCharacterFile::MaterialType::TP, 125);
-  size_t pow_mats = log_material("POWER", PSOBBCharacterFile::MaterialType::POWER, 250);
-  size_t mind_mats = log_material("MIND", PSOBBCharacterFile::MaterialType::MIND, 250);
-  size_t evade_mats = log_material("EVADE", PSOBBCharacterFile::MaterialType::EVADE, 250);
-  size_t def_mats = log_material("DEF", PSOBBCharacterFile::MaterialType::DEF, 250);
-  size_t luck_mats = log_material("LUCK", PSOBBCharacterFile::MaterialType::LUCK, 100);
-
-  size_t non_hp_tp_mats = pow_mats + mind_mats + evade_mats + def_mats + luck_mats;
-  if (non_hp_tp_mats > 250) {
-    c->log.warning_f(
-        "Hardcore item legality audit [{}]: non-HP/TP material total={} exceeds conservative limit=250 "
-        "(pow={} mind={} evade={} def={} luck={})",
-        context,
-        non_hp_tp_mats,
-        pow_mats,
-        mind_mats,
-        evade_mats,
-        def_mats,
-        luck_mats);
-  }
-
-  try {
-    auto pmt = s->item_parameter_table(Version::BB_V4);
-    uint8_t char_class = p->disp.visual.char_class;
-
-    for (uint8_t tech_num = 0; tech_num < 0x13; tech_num++) {
-      uint8_t level = p->get_technique_level(tech_num);
-      if (level == 0xFF) {
-        continue;
-      }
-
-      uint8_t max_level = pmt->get_max_tech_level(char_class, tech_num);
-      if (level > max_level) {
-        c->log.warning_f(
-            "Hardcore item legality audit [{}]: technique={} level={} exceeds class max={} char_class={}",
-            context,
-            tech_num,
-            static_cast<size_t>(level + 1),
-            static_cast<size_t>(max_level + 1),
-            static_cast<size_t>(char_class));
-      }
-    }
-  } catch (const exception& e) {
-    c->log.warning_f(
-        "Hardcore item legality audit [{}]: technique legality check failed: {}",
-        context,
-        e.what());
-  }
-
-  for (auto slot : {EquipSlot::WEAPON, EquipSlot::ARMOR, EquipSlot::SHIELD, EquipSlot::MAG,
-           EquipSlot::UNIT_1, EquipSlot::UNIT_2, EquipSlot::UNIT_3, EquipSlot::UNIT_4}) {
-    try {
-      inv.find_equipped_item(slot);
-    } catch (const out_of_range&) {
-      // Empty equip slots are normal.
-    } catch (const exception& e) {
-      c->log.warning_f(
-          "Hardcore item legality audit [{}]: equipped-slot check failed: {}",
-          context,
-          e.what());
-    }
-  }
-}
-
-
-
 shared_ptr<Lobby> create_game_generic(
     shared_ptr<ServerState> s,
     shared_ptr<Client> creator_c,
@@ -5254,92 +4731,31 @@ shared_ptr<Lobby> create_game_generic(
   size_t min_level = s->default_min_level_for_game(creator_c->version(), episode, difficulty);
 
   if (s->enable_hardcore_mode && (creator_c->version() == Version::BB_V4)) {
-    if (((episode == Episode::EP2) || (episode == Episode::EP4)) &&
-        ((difficulty == Difficulty::NORMAL) || (difficulty == Difficulty::HARD))) {
-      creator_c->log.warning_f(
-          "Hardcore room blocked: Episode {} is unavailable below Very Hard",
-          (episode == Episode::EP2) ? 2 : 4);
-      send_message_box(creator_c,
-          (episode == Episode::EP2)
-              ? "$C6Hardcore Episode 2\nis available on\nVery Hard and Ultimate."
-              : "$C6Hardcore Episode 4\nis available on\nVery Hard and Ultimate.");
+    if ((episode == Episode::EP2) && (difficulty != Difficulty::ULTIMATE)) {
+      creator_c->log.warning_f("Hardcore room blocked: Episode 2 is Ultimate-only");
+      send_message_box(creator_c, "$C6Hardcore Episode 2\nis only available\non Ultimate.");
       return nullptr;
     }
-
-    auto progression_p = creator_c->character_file();
-    auto require_hardcore_boss_clear = [&](uint16_t flag_num, Difficulty required_difficulty, const char* boss_name) -> bool {
-      if (progression_p->quest_flags.get(required_difficulty, flag_num)) {
-        return true;
-      }
-
-      creator_c->log.warning_f(
-          "Hardcore progression blocked: Episode {} {} requires {} clear on {}",
-          static_cast<size_t>(episode),
-          name_for_difficulty(difficulty),
-          boss_name,
-          name_for_difficulty(required_difficulty));
-      send_message_box(creator_c, std::format(
-          "$C6Hardcore progression\nDefeat {} on\n{} first.",
-          boss_name,
-          name_for_difficulty(required_difficulty)));
-      return false;
-    };
-
-    size_t difficulty_index = static_cast<size_t>(difficulty);
-    static constexpr uint16_t HARDCORE_DARK_FALZ_CLEAR_FLAG = 0x0033;
-    static constexpr uint16_t HARDCORE_OLGA_FLOW_CLEAR_FLAG = 0x0057;
-
-    if (episode == Episode::EP1) {
-      if ((difficulty_index >= 1) && (difficulty_index <= 3)) {
-        Difficulty required_difficulty = static_cast<Difficulty>(difficulty_index - 1);
-        if (!require_hardcore_boss_clear(HARDCORE_DARK_FALZ_CLEAR_FLAG, required_difficulty, "Dark Falz")) {
-          return nullptr;
-        }
-      }
-    } else if (episode == Episode::EP2) {
-      if (difficulty_index == 2) {
-        if (!require_hardcore_boss_clear(HARDCORE_DARK_FALZ_CLEAR_FLAG, static_cast<Difficulty>(2), "Dark Falz")) {
-          return nullptr;
-        }
-      } else if (difficulty_index == 3) {
-        if (!require_hardcore_boss_clear(HARDCORE_OLGA_FLOW_CLEAR_FLAG, static_cast<Difficulty>(2), "Olga Flow")) {
-          return nullptr;
-        }
-      }
-    } else if (episode == Episode::EP4) {
-      if ((difficulty_index == 2) || (difficulty_index == 3)) {
-        if (!require_hardcore_boss_clear(HARDCORE_OLGA_FLOW_CLEAR_FLAG, difficulty, "Olga Flow")) {
-          return nullptr;
-        }
-      }
+    if ((episode == Episode::EP4) && (difficulty != Difficulty::ULTIMATE)) {
+      creator_c->log.warning_f("Hardcore room blocked: Episode 4 is Ultimate-only");
+      send_message_box(creator_c, "$C6Hardcore Episode 4\nis only available\non Ultimate.");
+      return nullptr;
     }
-
-    if (((episode == Episode::EP2) || (episode == Episode::EP4)) &&
-        (min_level > creator_c->character_file()->disp.stats.level)) {
-      creator_c->log.warning_f(
-          "Hardcore room blocked: Episode {} {} requires level {}",
-          (episode == Episode::EP2) ? 2 : 4,
-          name_for_difficulty(difficulty),
-          min_level + 1);
-      send_message_box(creator_c, std::format(
-          "$C6Hardcore Episode {}\n{} requires\nlevel {} or above.",
-          (episode == Episode::EP2) ? 2 : 4,
-          name_for_difficulty(difficulty),
-          min_level + 1));
+    if ((episode == Episode::EP2) && (creator_c->character_file()->disp.stats.level < 99)) {
+      creator_c->log.warning_f("Hardcore room blocked: Episode 2 Ultimate requires level 100");
+      send_message_box(creator_c, "$C6Hardcore Episode 2\nUltimate requires\nlevel 100 or above.");
+      return nullptr;
+    }
+    if ((episode == Episode::EP4) && (creator_c->character_file()->disp.stats.level < 119)) {
+      creator_c->log.warning_f("Hardcore room blocked: Episode 4 Ultimate requires level 120");
+      send_message_box(creator_c, "$C6Hardcore Episode 4\nUltimate requires\nlevel 120 or above.");
       return nullptr;
     }
   }
 
-
-  log_hardcore_inventory_legality(creator_c, "create-game");
-  append_hardcore_stats_snapshot(creator_c, "create-game");
 
   auto p = creator_c->character_file();
-  bool allow_free_join_games = creator_c->login->account->check_flag(Account::Flag::FREE_JOIN_GAMES);
-  if (s->enable_hardcore_mode && (creator_c->version() == Version::BB_V4) && bb_character_is_hardcore(creator_c)) {
-    allow_free_join_games = false;
-  }
-  if (!allow_free_join_games && (min_level > p->disp.stats.level)) {
+  if (!creator_c->login->account->check_flag(Account::Flag::FREE_JOIN_GAMES) && (min_level > p->disp.stats.level)) {
     // Note: We don't throw here because this is a situation players might encounter while playing the game normally
     string msg = std::format("You must be level {}\nor above to play\nthis difficulty.", static_cast<size_t>(min_level + 1));
     send_lobby_message_box(creator_c, msg);
@@ -5963,15 +5379,6 @@ static asio::awaitable<void> on_D0_V3_BB(shared_ptr<Client> c, Channel::Message&
     throw runtime_error("trade command sent to missing player");
   }
 
-  auto s = c->require_server_state();
-  if (s->enable_hardcore_mode &&
-      (((c->version() == Version::BB_V4) && bb_character_is_hardcore(c)) ||
-          ((target_c->version() == Version::BB_V4) && bb_character_is_hardcore(target_c)))) {
-    send_message_box(c, "$C6Trading is disabled in Hardcore Mode.");
-    send_message_box(target_c, "$C6Trading is disabled in Hardcore Mode.");
-    co_return;
-  }
-
   c->pending_item_trade = make_unique<Client::PendingItemTrade>();
   c->pending_item_trade->other_client_id = cmd.target_client_id;
   for (size_t x = 0; x < cmd.item_count; x++) {
@@ -6011,18 +5418,6 @@ static asio::awaitable<void> on_D2_V3_BB(shared_ptr<Client> c, Channel::Message&
   }
 
   auto s = c->require_server_state();
-  if (s->enable_hardcore_mode &&
-      (((c->version() == Version::BB_V4) && bb_character_is_hardcore(c)) ||
-          ((target_c->version() == Version::BB_V4) && bb_character_is_hardcore(target_c)))) {
-    c->pending_item_trade.reset();
-    target_c->pending_item_trade.reset();
-    send_command(c, 0xD4, 0x00);
-    send_command(target_c, 0xD4, 0x00);
-    send_message_box(c, "$C6Trading is disabled in Hardcore Mode.");
-    send_message_box(target_c, "$C6Trading is disabled in Hardcore Mode.");
-    co_return;
-  }
-
   auto complete_trade_for_side = [s, l](shared_ptr<Client> c, shared_ptr<Client> other_c) -> void {
     if (c->version() == Version::BB_V4) {
       // On BB, the server generates the delete/create item commands
