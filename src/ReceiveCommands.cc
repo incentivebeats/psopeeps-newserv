@@ -422,7 +422,7 @@ static asio::awaitable<bool> enforce_bb_hardcore_client_integrity_probe(shared_p
   };
 
   static const CheckRange ranges[] = {
-      {"pe-header", 0x00400000, 0x0000E000, 0xC4D24DD1},
+      {"pe-header", 0x00400000, 0x0000E000, 0x02D05B6B},
       {"set-palette-hotkey", 0x0068CDE0, 0x00000080, 0x3949F1D9},
       {"hotkey-block-2", 0x00710390, 0x000000F0, 0x5F722787},
       {"hotkey-block-1", 0x00748940, 0x000001F0, 0x43386845},
