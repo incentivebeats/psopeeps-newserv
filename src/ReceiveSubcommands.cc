@@ -3656,12 +3656,32 @@ static asio::awaitable<void> dispatch_dc_v2_exp_patch(shared_ptr<Client> c) {
       co_return;
   }
 
-  string key = "PsoPeepsV2EXP_internal_10x_";
+  auto server_state = c->require_server_state();
+  string key = "PsoPeepsV2EXP_internal_";
   key += diff_str;
 
   try {
-    auto server_state = c->require_server_state();
-    auto fn = server_state->client_functions->get(key, c->specific_version);
+    auto base_fn = server_state->client_functions->get(key, c->specific_version);
+    auto fn = make_shared<ClientFunctionIndex::Function>(*base_fn);
+
+    for (size_t z = 0; z < 213; z++) {
+      string label = std::format("exp_{:03}", z);
+      size_t offset = fn->label_offsets.at(label);
+      if (offset > fn->code.size() - 2) {
+        throw runtime_error("DC V2 EXP label out of range");
+      }
+
+      uint16_t base_exp = static_cast<uint8_t>(fn->code[offset]) |
+          (static_cast<uint16_t>(static_cast<uint8_t>(fn->code[offset + 1])) << 8);
+      uint64_t scaled_exp = base_exp * static_cast<uint64_t>(server_state->dc_v2_exp_multiplier);
+      if (scaled_exp > 0xFFFF) {
+        scaled_exp = 0xFFFF;
+      }
+
+      fn->code[offset] = static_cast<char>(scaled_exp & 0xFF);
+      fn->code[offset + 1] = static_cast<char>((scaled_exp >> 8) & 0xFF);
+    }
+
     co_await send_function_call(c, fn);
   } catch (const out_of_range&) {
     c->log.warning_f("DC V2 EXP dispatcher could not find client function {}", key);
