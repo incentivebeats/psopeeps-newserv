@@ -271,6 +271,8 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   std::vector<QuestF960Result> quest_F960_success_results;
   QuestF960Result quest_F960_failure_results;
   float bb_global_exp_multiplier = 1.0f;
+  int64_t dc_v2_exp_multiplier = 1;
+  int64_t gc_v3_exp_multiplier = 1;
   float exp_share_multiplier = 0.5f;
   float server_global_drop_rate_multiplier = 1.0f;
 

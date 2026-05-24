@@ -3657,20 +3657,110 @@ static asio::awaitable<void> dispatch_dc_v2_exp_patch(shared_ptr<Client> c) {
   }
 
   auto server_state = c->require_server_state();
-
   string key = "PsoPeepsV2EXP_internal_";
-  key += std::to_string(server_state->psopeeps_dcv2_exp_multiplier);
-  key += "x_";
   key += diff_str;
 
   try {
-    auto fn = server_state->client_functions->get(key, c->specific_version);
+    auto base_fn = server_state->client_functions->get(key, c->specific_version);
+    auto fn = make_shared<ClientFunctionIndex::Function>(*base_fn);
+
+    for (size_t z = 0; z < 213; z++) {
+      string label = std::format("exp_{:03}", z);
+      size_t offset = fn->label_offsets.at(label);
+      if (offset > fn->code.size() - 2) {
+        throw runtime_error("DC V2 EXP label out of range");
+      }
+
+      uint16_t base_exp = static_cast<uint8_t>(fn->code[offset]) |
+          (static_cast<uint16_t>(static_cast<uint8_t>(fn->code[offset + 1])) << 8);
+      uint64_t scaled_exp = base_exp * static_cast<uint64_t>(server_state->dc_v2_exp_multiplier);
+      if (scaled_exp > 0xFFFF) {
+        scaled_exp = 0xFFFF;
+      }
+
+      fn->code[offset] = static_cast<char>(scaled_exp & 0xFF);
+      fn->code[offset + 1] = static_cast<char>((scaled_exp >> 8) & 0xFF);
+    }
+
     co_await send_function_call(c, fn);
   } catch (const out_of_range&) {
     c->log.warning_f("DC V2 EXP dispatcher could not find client function {}", key);
   }
 }
 
+// Dispatch the correct GC V3 EXP table for the current episode when the
+// universal GC EXP enable shim is active. This avoids EP1/EP2 patches
+// overwriting each other or leaving stale episode tables in memory.
+static asio::awaitable<void> dispatch_gc_v3_exp_patch(shared_ptr<Client> c) {
+  if (c->version() != Version::GC_V3) {
+    co_return;
+  }
+  if (not c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL)) {
+    co_return;
+  }
+  if (not c->login || not c->login->account) {
+    co_return;
+  }
+  if (not c->login->account->auto_patches_enabled.count("PsoPeepsGCV3EXP_enabled")) {
+    co_return;
+  }
+
+  auto l = c->require_lobby();
+  if (not l->is_game()) {
+    co_return;
+  }
+
+  const char* key = nullptr;
+  size_t num_exp_labels = 0;
+  switch (l->episode) {
+    case Episode::EP1:
+      key = "PsoPeepsEP1EXP_internal";
+      num_exp_labels = 374;
+      break;
+    case Episode::EP2:
+      // The known-good GC disc patch does not modify BattleParamEntry_lab_on.dat.
+      // Leave Episode 2 untouched until it is researched separately.
+      co_return;
+    default:
+      co_return;
+  }
+
+  try {
+    auto server_state = c->require_server_state();
+    auto base_fn = server_state->client_functions->get(key, c->specific_version);
+    auto fn = make_shared<ClientFunctionIndex::Function>(*base_fn);
+
+    for (size_t z = 0; z < num_exp_labels; z++) {
+
+      string label = std::format("exp_{:03}", z);
+      size_t offset = fn->label_offsets.at(label);
+      if (offset > fn->code.size() - 4) {
+        throw runtime_error("GC V3 EXP label out of range");
+      }
+
+      uint32_t base_exp =
+          (static_cast<uint32_t>(static_cast<uint8_t>(fn->code[offset])) << 24) |
+          (static_cast<uint32_t>(static_cast<uint8_t>(fn->code[offset + 1])) << 16) |
+          (static_cast<uint32_t>(static_cast<uint8_t>(fn->code[offset + 2])) << 8) |
+          static_cast<uint32_t>(static_cast<uint8_t>(fn->code[offset + 3]));
+
+      uint64_t scaled_exp = static_cast<uint64_t>(base_exp) *
+          static_cast<uint64_t>(server_state->gc_v3_exp_multiplier);
+      if (scaled_exp > 0xFFFFFFFFULL) {
+        scaled_exp = 0xFFFFFFFFULL;
+      }
+
+      fn->code[offset] = static_cast<char>((scaled_exp >> 24) & 0xFF);
+      fn->code[offset + 1] = static_cast<char>((scaled_exp >> 16) & 0xFF);
+      fn->code[offset + 2] = static_cast<char>((scaled_exp >> 8) & 0xFF);
+      fn->code[offset + 3] = static_cast<char>(scaled_exp & 0xFF);
+    }
+
+    co_await send_function_call(c, fn);
+  } catch (const out_of_range&) {
+    c->log.warning_f("GC V3 EXP dispatcher could not find client function {}", key);
+  }
+}
 
 static asio::awaitable<void> on_trigger_set_event(shared_ptr<Client> c, SubcommandMessage& msg) {
   auto l = c->require_lobby();
@@ -3679,6 +3769,7 @@ static asio::awaitable<void> on_trigger_set_event(shared_ptr<Client> c, Subcomma
   }
 
   co_await dispatch_dc_v2_exp_patch(c);
+  co_await dispatch_gc_v3_exp_patch(c);
 
   const auto& cmd = msg.check_size_t<G_TriggerSetEvent_6x67>();
   auto event_sts = l->map_state->event_states_for_id(c->version(), cmd.floor, cmd.event_id);
