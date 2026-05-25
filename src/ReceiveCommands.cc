@@ -4920,6 +4920,31 @@ static asio::awaitable<void> on_C9_XB(shared_ptr<Client> c, Channel::Message& ms
   co_return;
 }
 
+static uint16_t safe_default_compatibility_group_for_version(Version v) {
+  static_assert(NUM_VERSIONS == 14, "Don't forget to update the safe default compatibility groups");
+  static const array<uint16_t, NUM_VERSIONS> groups = {{
+      0x0000, // PC_PATCH
+      0x0000, // BB_PATCH
+      0x0004, // DC_NTE compatible only with itself
+      0x0008, // DC_11_2000 compatible only with itself
+      0x00B0, // DC_V1 compatible with DC_V1, DC_V2, and PC_V2
+      0x00B0, // DC_V2 compatible with DC_V1, DC_V2, and PC_V2
+      0x0040, // PC_NTE compatible only with itself
+      0x00B0, // PC_V2 compatible with DC_V1, DC_V2, and PC_V2
+      0x0100, // GC_NTE compatible only with itself
+      0x1200, // GC_V3 compatible with GC_V3 and XB_V3
+      0x0400, // GC_EP3_NTE compatible only with itself
+      0x0800, // GC_EP3 compatible only with itself
+      0x1200, // XB_V3 compatible with GC_V3 and XB_V3
+      0x2000, // BB_V4 compatible only with itself
+  }};
+  return groups.at(static_cast<size_t>(v));
+}
+
+static bool game_name_enables_full_crossplay(const string& name) {
+  return !name.empty() && ((name[0] == 'x') || (name[0] == 'X'));
+}
+
 shared_ptr<Lobby> create_game_generic(
     shared_ptr<ServerState> s,
     shared_ptr<Client> creator_c,
@@ -4960,7 +4985,11 @@ shared_ptr<Lobby> create_game_generic(
   game->episode = episode;
   game->mode = mode;
   game->difficulty = difficulty;
-  game->allowed_versions = s->compatibility_groups.at(static_cast<size_t>(creator_c->version()));
+  if (game_name_enables_full_crossplay(name)) {
+    game->allowed_versions = s->compatibility_groups.at(static_cast<size_t>(creator_c->version()));
+  } else {
+    game->allowed_versions = safe_default_compatibility_group_for_version(creator_c->version());
+  }
   static_assert(NUM_VERSIONS == 14, "Don't forget to update the group compatibility restrictions");
   if (!allow_v1 || (difficulty == Difficulty::ULTIMATE) || (mode == GameMode::CHALLENGE) || (mode == GameMode::SOLO)) {
     game->forbid_version(Version::DC_NTE);
