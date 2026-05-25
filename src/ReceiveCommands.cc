@@ -4946,12 +4946,26 @@ static bool game_name_enables_full_crossplay(const string& name, Version creator
     return true;
   }
 
-  // BB room names appear here with an 8-space + "E" prefix before the user-visible room name.
-  // Example: a BB room entered as "x asdf" is decoded here as "        Ex asdf".
-  if ((creator_version == Version::BB_V4) &&
-      (name.size() >= 10) &&
-      (name.compare(0, 9, "        E") == 0)) {
-    return (name[9] == 'x') || (name[9] == 'X');
+  // BB room names appear here with leading padding and an episode marker before
+  // the user-visible room name. For example, a BB room entered as "x asdf" has
+  // been observed as "        Ex asdf". Skip the padding and accept either:
+  //   x...
+  //   Ex...
+  if (creator_version == Version::BB_V4) {
+    size_t offset = 0;
+    while ((offset < name.size()) && (name[offset] == ' ')) {
+      offset++;
+    }
+
+    if ((offset < name.size()) && ((name[offset] == 'x') || (name[offset] == 'X'))) {
+      return true;
+    }
+
+    if ((offset + 1 < name.size()) &&
+        ((name[offset] == 'E') || (name[offset] == 'e')) &&
+        ((name[offset + 1] == 'x') || (name[offset + 1] == 'X'))) {
+      return true;
+    }
   }
 
   return false;
