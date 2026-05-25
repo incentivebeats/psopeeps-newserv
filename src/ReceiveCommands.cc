@@ -4953,7 +4953,7 @@ static bool game_name_enables_full_crossplay(const string& name, Version creator
   //   Ex...
   if (creator_version == Version::BB_V4) {
     size_t offset = 0;
-    while ((offset < name.size()) && (name[offset] == ' ')) {
+    while ((offset < name.size()) && ((name[offset] == ' ') || (name[offset] == '\t'))) {
       offset++;
     }
 
