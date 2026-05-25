@@ -4941,8 +4941,20 @@ static uint16_t safe_default_compatibility_group_for_version(Version v) {
   return groups.at(static_cast<size_t>(v));
 }
 
-static bool game_name_enables_full_crossplay(const string& name) {
-  return !name.empty() && ((name[0] == 'x') || (name[0] == 'X'));
+static bool game_name_enables_full_crossplay(const string& name, Version creator_version) {
+  if (!name.empty() && ((name[0] == 'x') || (name[0] == 'X'))) {
+    return true;
+  }
+
+  // BB room names appear here with an 8-space + "E" prefix before the user-visible room name.
+  // Example: a BB room entered as "x asdf" is decoded here as "        Ex asdf".
+  if ((creator_version == Version::BB_V4) &&
+      (name.size() >= 10) &&
+      (name.compare(0, 9, "        E") == 0)) {
+    return (name[9] == 'x') || (name[9] == 'X');
+  }
+
+  return false;
 }
 
 shared_ptr<Lobby> create_game_generic(
@@ -4985,7 +4997,7 @@ shared_ptr<Lobby> create_game_generic(
   game->episode = episode;
   game->mode = mode;
   game->difficulty = difficulty;
-  bool full_crossplay_enabled = game_name_enables_full_crossplay(name);
+  bool full_crossplay_enabled = game_name_enables_full_crossplay(name, creator_c->version());
   if (full_crossplay_enabled) {
     game->allowed_versions = s->compatibility_groups.at(static_cast<size_t>(creator_c->version()));
   } else {
