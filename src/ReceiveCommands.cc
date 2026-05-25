@@ -4985,11 +4985,19 @@ shared_ptr<Lobby> create_game_generic(
   game->episode = episode;
   game->mode = mode;
   game->difficulty = difficulty;
-  if (game_name_enables_full_crossplay(name)) {
+  bool full_crossplay_enabled = game_name_enables_full_crossplay(name);
+  if (full_crossplay_enabled) {
     game->allowed_versions = s->compatibility_groups.at(static_cast<size_t>(creator_c->version()));
   } else {
     game->allowed_versions = safe_default_compatibility_group_for_version(creator_c->version());
   }
+
+  game->log.info_f(
+      "PSO Peeps crossplay opt-in: name=[{}] creator_version={} full_crossplay_enabled={} allowed_versions={:04X}",
+      name,
+      static_cast<size_t>(creator_c->version()),
+      full_crossplay_enabled,
+      game->allowed_versions);
   static_assert(NUM_VERSIONS == 14, "Don't forget to update the group compatibility restrictions");
   if (!allow_v1 || (difficulty == Difficulty::ULTIMATE) || (mode == GameMode::CHALLENGE) || (mode == GameMode::SOLO)) {
     game->forbid_version(Version::DC_NTE);
