@@ -418,14 +418,14 @@ static asio::awaitable<bool> enforce_bb_hardcore_client_integrity_probe(shared_p
     const char* name;
     uint32_t address;
     uint32_t size;
-    uint32_t expected_checksums[2];
+    uint32_t expected_checksums[4];
   };
 
   static const CheckRange ranges[] = {
-      {"pe-header", 0x00400000, 0x0000E000, {0x02D05B6B, 0xC9C3BB5C}},
-      {"set-palette-hotkey", 0x0068CDE0, 0x00000080, {0x3949F1D9, 0}},
-      {"hotkey-block-2", 0x00710390, 0x000000F0, {0x5F722787, 0}},
-      {"hotkey-block-1", 0x00748940, 0x000001F0, {0x43386845, 0}},
+      {"pe-header", 0x00400000, 0x0000E000, {0x02D05B6B, 0xC9C3BB5C, 0xD77146DA, 0}},
+      {"set-palette-hotkey", 0x0068CDE0, 0x00000080, {0x3949F1D9, 0, 0, 0}},
+      {"hotkey-block-2", 0x00710390, 0x000000F0, {0x5F722787, 0, 0, 0}},
+      {"hotkey-block-1", 0x00748940, 0x000001F0, {0x43386845, 0, 0, 0}},
   };
 
   shared_ptr<const ClientFunctionIndex::Function> code;
