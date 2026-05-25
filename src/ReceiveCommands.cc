@@ -418,14 +418,14 @@ static asio::awaitable<bool> enforce_bb_hardcore_client_integrity_probe(shared_p
     const char* name;
     uint32_t address;
     uint32_t size;
-    uint32_t expected_checksum;
+    uint32_t expected_checksums[2];
   };
 
   static const CheckRange ranges[] = {
-      {"pe-header", 0x00400000, 0x0000E000, 0x02D05B6B},
-      {"set-palette-hotkey", 0x0068CDE0, 0x00000080, 0x3949F1D9},
-      {"hotkey-block-2", 0x00710390, 0x000000F0, 0x5F722787},
-      {"hotkey-block-1", 0x00748940, 0x000001F0, 0x43386845},
+      {"pe-header", 0x00400000, 0x0000E000, {0x02D05B6B, 0xC9C3BB5C}},
+      {"set-palette-hotkey", 0x0068CDE0, 0x00000080, {0x3949F1D9, 0}},
+      {"hotkey-block-2", 0x00710390, 0x000000F0, {0x5F722787, 0}},
+      {"hotkey-block-1", 0x00748940, 0x000001F0, {0x43386845, 0}},
   };
 
   shared_ptr<const ClientFunctionIndex::Function> code;
@@ -446,23 +446,33 @@ static asio::awaitable<bool> enforce_bb_hardcore_client_integrity_probe(shared_p
           c, code, label_writes, nullptr, 0, range.address, range.size, 0, false);
 
       c->log.info_f(
-          "Hardcore BB integrity probe: {} addr={:08X} size={:08X} checksum={:08X} expected_checksum={:08X} return={:08X} expected_return={:08X}",
+          "Hardcore BB integrity probe: {} addr={:08X} size={:08X} checksum={:08X} expected_checksum={:08X} alternate_checksum={:08X} return={:08X} expected_return={:08X}",
           range.name,
           range.address,
           range.size,
           resp.checksum,
-          range.expected_checksum,
+          range.expected_checksums[0],
+          range.expected_checksums[1],
           resp.return_value,
           token);
 
-      if ((resp.return_value != token) || (resp.checksum != range.expected_checksum)) {
+      bool checksum_matches = false;
+      for (uint32_t expected_checksum : range.expected_checksums) {
+        if ((expected_checksum != 0) && (resp.checksum == expected_checksum)) {
+          checksum_matches = true;
+          break;
+        }
+      }
+
+      if ((resp.return_value != token) || !checksum_matches) {
         c->log.warning_f(
-            "Hardcore BB integrity probe rejected client: {} addr={:08X} size={:08X} checksum={:08X} expected_checksum={:08X} return={:08X} expected_return={:08X}",
+            "Hardcore BB integrity probe rejected client: {} addr={:08X} size={:08X} checksum={:08X} expected_checksum={:08X} alternate_checksum={:08X} return={:08X} expected_return={:08X}",
             range.name,
             range.address,
             range.size,
             resp.checksum,
-            range.expected_checksum,
+            range.expected_checksums[0],
+            range.expected_checksums[1],
             resp.return_value,
             token);
         disconnect_for_bb_hardcore_client_integrity_failure(c);
