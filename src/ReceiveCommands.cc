@@ -5018,9 +5018,18 @@ shared_ptr<Lobby> create_game_generic(
     game->allowed_versions = safe_default_compatibility_group_for_version(creator_c->version());
   }
 
+  string name_bytes;
+  for (uint8_t ch : name) {
+    if (!name_bytes.empty()) {
+      name_bytes += ' ';
+    }
+    name_bytes += std::format("{:02X}", ch);
+  }
+
   game->log.info_f(
-      "PSO Peeps crossplay opt-in: name=[{}] creator_version={} full_crossplay_enabled={} allowed_versions={:04X}",
+      "PSO Peeps crossplay opt-in: name=[{}] name_bytes=[{}] creator_version={} full_crossplay_enabled={} allowed_versions={:04X}",
       name,
+      name_bytes,
       static_cast<size_t>(creator_c->version()),
       full_crossplay_enabled,
       game->allowed_versions);
