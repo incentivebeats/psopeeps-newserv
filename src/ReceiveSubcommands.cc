@@ -3578,9 +3578,41 @@ static asio::awaitable<void> on_set_quest_flag(shared_ptr<Client> c, SubcommandM
     auto s = c->require_server_state();
     // TODO: Should we allow overlays here?
     auto p = c->character_file(true, false);
+
+    auto bb_hardcore_main_warp_flag_for_classic_flag = [](uint16_t flag_num) -> uint16_t {
+      switch (flag_num) {
+        case 0x0017: // Dragon defeated -> Cave 1
+          return 0x01F9;
+        case 0x0020: // De Rol Le defeated -> Mine 1
+          return 0x0201;
+        case 0x002A: // Vol Opt defeated, offline/classic flag -> Ruins 1
+        case 0x0030: // Vol Opt defeated, online/multi flag -> Ruins 1
+          return 0x0207;
+        default:
+          return 0xFFFF;
+      }
+    };
+
     if (should_set) {
       c->log.info_f("Setting quest flag {}:{:04X}", name_for_difficulty(difficulty), flag_num);
       p->quest_flags.set(difficulty, flag_num);
+
+      if (s->enable_hardcore_mode) {
+        uint16_t bb_main_warp_flag_num = bb_hardcore_main_warp_flag_for_classic_flag(flag_num);
+        if (bb_main_warp_flag_num != 0xFFFF) {
+          c->log.info_f(
+              "Hardcore BB progression mirror: setting quest flag {}:{:04X} from classic flag {:04X}",
+              name_for_difficulty(difficulty),
+              bb_main_warp_flag_num,
+              flag_num);
+          p->quest_flags.set(difficulty, bb_main_warp_flag_num);
+
+          if (l->quest_flags_known) {
+            l->quest_flags_known->set(difficulty, bb_main_warp_flag_num);
+          }
+          l->quest_flag_values->set(difficulty, bb_main_warp_flag_num);
+        }
+      }
     } else {
       c->log.info_f("Clearing quest flag {}:{:04X}", name_for_difficulty(difficulty), flag_num);
       p->quest_flags.clear(difficulty, flag_num);
