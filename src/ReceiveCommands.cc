@@ -4920,6 +4920,57 @@ static asio::awaitable<void> on_C9_XB(shared_ptr<Client> c, Channel::Message& ms
   co_return;
 }
 
+static uint16_t safe_default_compatibility_group_for_version(Version v) {
+  static_assert(NUM_VERSIONS == 14, "Don't forget to update the safe default compatibility groups");
+  static const array<uint16_t, NUM_VERSIONS> groups = {{
+      0x0000, // PC_PATCH
+      0x0000, // BB_PATCH
+      0x0004, // DC_NTE compatible only with itself
+      0x0008, // DC_11_2000 compatible only with itself
+      0x00B0, // DC_V1 compatible with DC_V1, DC_V2, and PC_V2
+      0x00B0, // DC_V2 compatible with DC_V1, DC_V2, and PC_V2
+      0x0040, // PC_NTE compatible only with itself
+      0x00B0, // PC_V2 compatible with DC_V1, DC_V2, and PC_V2
+      0x0100, // GC_NTE compatible only with itself
+      0x1200, // GC_V3 compatible with GC_V3 and XB_V3
+      0x0400, // GC_EP3_NTE compatible only with itself
+      0x0800, // GC_EP3 compatible only with itself
+      0x1200, // XB_V3 compatible with GC_V3 and XB_V3
+      0x2000, // BB_V4 compatible only with itself
+  }};
+  return groups.at(static_cast<size_t>(v));
+}
+
+static bool game_name_enables_full_crossplay(const string& name, Version creator_version) {
+  if (!name.empty() && ((name[0] == 'x') || (name[0] == 'X'))) {
+    return true;
+  }
+
+  // BB room names appear here with leading padding and an episode marker before
+  // the user-visible room name. For example, a BB room entered as "x asdf" has
+  // been observed as "        Ex asdf". Skip the padding and accept either:
+  //   x...
+  //   Ex...
+  if (creator_version == Version::BB_V4) {
+    size_t offset = 0;
+    while ((offset < name.size()) && ((name[offset] == ' ') || (name[offset] == '\t'))) {
+      offset++;
+    }
+
+    if ((offset < name.size()) && ((name[offset] == 'x') || (name[offset] == 'X'))) {
+      return true;
+    }
+
+    if ((offset + 1 < name.size()) &&
+        ((name[offset] == 'E') || (name[offset] == 'e')) &&
+        ((name[offset + 1] == 'x') || (name[offset + 1] == 'X'))) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 shared_ptr<Lobby> create_game_generic(
     shared_ptr<ServerState> s,
     shared_ptr<Client> creator_c,
@@ -4960,7 +5011,28 @@ shared_ptr<Lobby> create_game_generic(
   game->episode = episode;
   game->mode = mode;
   game->difficulty = difficulty;
-  game->allowed_versions = s->compatibility_groups.at(static_cast<size_t>(creator_c->version()));
+  bool full_crossplay_enabled = game_name_enables_full_crossplay(name, creator_c->version());
+  if (full_crossplay_enabled) {
+    game->allowed_versions = s->compatibility_groups.at(static_cast<size_t>(creator_c->version()));
+  } else {
+    game->allowed_versions = safe_default_compatibility_group_for_version(creator_c->version());
+  }
+
+  string name_bytes;
+  for (uint8_t ch : name) {
+    if (!name_bytes.empty()) {
+      name_bytes += ' ';
+    }
+    name_bytes += std::format("{:02X}", ch);
+  }
+
+  game->log.info_f(
+      "PSO Peeps crossplay opt-in: name=[{}] name_bytes=[{}] creator_version={} full_crossplay_enabled={} allowed_versions={:04X}",
+      name,
+      name_bytes,
+      static_cast<size_t>(creator_c->version()),
+      full_crossplay_enabled,
+      game->allowed_versions);
   static_assert(NUM_VERSIONS == 14, "Don't forget to update the group compatibility restrictions");
   if (!allow_v1 || (difficulty == Difficulty::ULTIMATE) || (mode == GameMode::CHALLENGE) || (mode == GameMode::SOLO)) {
     game->forbid_version(Version::DC_NTE);
