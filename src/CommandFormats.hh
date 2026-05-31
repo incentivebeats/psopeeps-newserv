@@ -412,18 +412,18 @@ struct S_UpdateClientConfig_DC_PC_04 {
   le_uint32_t guild_card_number = 0;
 } __packed_ws__(S_UpdateClientConfig_DC_PC_04, 8);
 
-struct S_UpdateClientConfig_V3_04 {
+template <size_t ClientConfigBytes>
+struct S_UpdateClientConfigT_V3_BB_04 {
   le_uint32_t player_tag = 0x00010000;
   le_uint32_t guild_card_number = 0;
   // This field is opaque to the client; it will send back the contents verbatim in subsequent 9E or 9F commands.
-  parray<uint8_t, 0x20> client_config;
-} __packed_ws__(S_UpdateClientConfig_V3_04, 0x28);
+  parray<uint8_t, ClientConfigBytes> client_config;
+} __attribute__((packed));
 
-struct S_UpdateClientConfig_BB_04 {
-  le_uint32_t player_tag = 0x00010000;
-  le_uint32_t guild_card_number = 0;
-  parray<uint8_t, 0x28> client_config;
-} __packed_ws__(S_UpdateClientConfig_BB_04, 0x30);
+using S_UpdateClientConfig_V3_04 = S_UpdateClientConfigT_V3_BB_04<0x20>;
+using S_UpdateClientConfig_BB_04 = S_UpdateClientConfigT_V3_BB_04<0x28>;
+check_struct_size(S_UpdateClientConfig_V3_04, 0x28);
+check_struct_size(S_UpdateClientConfig_BB_04, 0x30);
 
 // 05: Disconnect
 // Internal name: SndLogout
@@ -1053,13 +1053,13 @@ struct PlayerRecordsEntry_BB {
 
 struct C_CharacterData_DCv1_61_98 {
   /* 0000 */ PlayerInventory inventory;
-  /* 034C */ PlayerDispDataDCPCV3 disp;
+  /* 034C */ PlayerDispDataV123 disp;
   /* 041C */
 } __packed_ws__(C_CharacterData_DCv1_61_98, 0x041C);
 
 struct C_CharacterData_DCv2_61_98 {
   /* 0000 */ PlayerInventory inventory;
-  /* 034C */ PlayerDispDataDCPCV3 disp;
+  /* 034C */ PlayerDispDataV123 disp;
   /* 041C */ PlayerRecordsEntry_DC records;
   /* 04D8 */ ChoiceSearchConfig choice_search_config;
   /* 04F0 */
@@ -1067,7 +1067,7 @@ struct C_CharacterData_DCv2_61_98 {
 
 struct C_CharacterData_PC_61_98 {
   /* 0000 */ PlayerInventory inventory;
-  /* 034C */ PlayerDispDataDCPCV3 disp;
+  /* 034C */ PlayerDispDataV123 disp;
   /* 041C */ PlayerRecordsEntry_PC records;
   /* 0510 */ ChoiceSearchConfig choice_search_config;
   /* 0528 */ parray<le_uint32_t, 0x1E> blocked_senders;
@@ -1079,7 +1079,7 @@ struct C_CharacterData_PC_61_98 {
 
 struct C_CharacterData_GCNTE_61_98 {
   /* 0000 */ PlayerInventory inventory;
-  /* 034C */ PlayerDispDataDCPCV3 disp;
+  /* 034C */ PlayerDispDataV123 disp;
   /* 041C */ PlayerRecordsEntry_DC records;
   /* 04D8 */ ChoiceSearchConfig choice_search_config;
   /* 04F0 */ parray<le_uint32_t, 0x1E> blocked_senders;
@@ -1091,7 +1091,7 @@ struct C_CharacterData_GCNTE_61_98 {
 
 struct C_CharacterData_V3_61_98 {
   /* 0000 */ PlayerInventory inventory;
-  /* 034C */ PlayerDispDataDCPCV3 disp;
+  /* 034C */ PlayerDispDataV123 disp;
   /* 041C */ PlayerRecordsEntry_V3 records;
   /* 0538 */ ChoiceSearchConfig choice_search_config;
   /* 0550 */ pstring<TextEncoding::MARKED, 0xAC> info_board;
@@ -1104,7 +1104,7 @@ struct C_CharacterData_V3_61_98 {
 
 struct C_CharacterData_Ep3_61_98 {
   /* 0000 */ PlayerInventory inventory;
-  /* 034C */ PlayerDispDataDCPCV3 disp;
+  /* 034C */ PlayerDispDataV123 disp;
   /* 041C */ PlayerRecordsEntry_V3 records;
   /* 0538 */ ChoiceSearchConfig choice_search_config;
   /* 0550 */ pstring<TextEncoding::MARKED, 0xAC> info_board;
@@ -1117,7 +1117,7 @@ struct C_CharacterData_Ep3_61_98 {
 
 struct C_CharacterData_BB_61_98 {
   /* 0000 */ PlayerInventory inventory;
-  /* 034C */ PlayerDispDataBB disp;
+  /* 034C */ PlayerDispDataV4 disp;
   /* 04DC */ PlayerRecordsEntry_BB records;
   /* 0638 */ ChoiceSearchConfig choice_search_config;
   /* 0650 */ pstring<TextEncoding::UTF16, 0xAC> info_board;
@@ -1139,16 +1139,36 @@ struct C_CharacterData_BB_61_98 {
 // 64 (S->C): Join game
 // Internal name: RcvStartGame3
 
-// This is sent to the joining player; the other players get a 65 instead. Note that (except on Episode 3) this command
-// does not include the player's disp or inventory data. The clients in the game are responsible for sending that data
-// to each other during the join process with 60/62/6C/6D commands.
-
-// After receiving a 64 command, the client starts the game loading procedure, during which it will completely ignore
-// other 64 or 65 commands, and will delay processing of all other commands except 1D until loading is done. If more
-// than 0x10000 bytes of commands are sent during loading, any commands that don't fit in the buffer are lost.
-
 // Curiously, this command is named RcvStartGame3 internally, while 0E is named RcvStartGame. The string RcvStartGame2
 // appears in the DC versions, but it seems the relevant code was deleted - there are no references to the string.
+
+// The game joining procedure goes as follows:
+// 1. The server sends 64 to the joining player, and 65 to all other players in the game. This pauses the game and
+//    brings up the "please wait" message box for all players. The joining player unloads the lobby assets and begins
+//    loading Pioneer 2 assets. On v2 and later, the joining player sends 8A near the beginning of this procedure.
+//    During this time, the joining player will completely ignore other 64 or 65 commands, and will delay processing of
+//    all other commands except 1D until loading is done. If more than 0x10000 bytes of commands are sent during
+//    loading, any commands that don't fit in the buffer are lost.
+// 2. If the joining player is not the only player in the game:
+//    a. If the leader is DC v1 or later, the leader sends 6x6D (item state).
+//    b. The leader sends 6x6B (enemy state).
+//    c. The leader sends 6x6C (object state).
+//    d. If the leader is DC NTE or DC 11/2000, the leader sends 6x6D (item state).
+//    e. The leader sends 6x6E (set flag state).
+//    f. If the leader is DC v1 or later, the leader sends 6x6F (quest flag state).
+//    g. If the leader is DC v1 or later, the leader sends 6x71 (construct player).
+//    h. All players except the joining player send 6x70 to the joining player. (This is not synchronized; non-leader
+//       players do not wait for any of the above things to happen, so their 6x70 commands may be interleaved with the
+//       preceding commands from the leader, or may arrive after the following 6x72.) Character data is sent in a
+//       different format here (6x70 instead of 65) because it contains ephemeral fields that the server doesn't know
+//       about - things like current HP, state, game flags, player flags, etc. which are not present in 65.
+//    i. If the leader is not BB, the leader sends 6x72 to all players, which resumes the game. If the leader is BB,
+//       the server is responsible for sending 6x72, and should do so here. (There is no sequence-breaking risk here,
+//       since the 6x72 sent to other players will always be ordered after the 65 from the server, so they will always
+//       send a 6x70 containing their player state at the time the game was paused.)
+// 3. Once the joining player has fully loaded, the player processes all the commands sent during loading, which sets
+//    up the game state and constructs all the other players. Once the local player is constructed, the joining player
+//    sends 6F, which notifies the server that it can unlock the game and allow more players to join.
 
 // Header flag = entry count
 template <typename LobbyDataT>
@@ -1195,7 +1215,7 @@ struct S_JoinGame_Ep3_64 : S_JoinGame_GC_64 {
   // four of these are always present and they are filled in in slot positions.
   struct Ep3PlayerEntry {
     PlayerInventory inventory;
-    PlayerDispDataDCPCV3 disp;
+    PlayerDispDataV123 disp;
   } __packed_ws__(Ep3PlayerEntry, 0x41C);
   parray<Ep3PlayerEntry, 4> players_ep3;
 } __packed_ws__(S_JoinGame_Ep3_64, 0x1180);
@@ -1272,10 +1292,10 @@ struct S_JoinLobbyT {
     return offsetof(S_JoinLobbyT, entries) + used_entries * sizeof(Entry);
   }
 } __attribute__((packed));
-using S_JoinLobby_DCNTE_65_67_68 = S_JoinLobbyT<LobbyFlagsDCNTE, PlayerLobbyDataDCGC, PlayerDispDataDCPCV3>;
-using S_JoinLobby_PC_65_67_68 = S_JoinLobbyT<LobbyFlags, PlayerLobbyDataPC, PlayerDispDataDCPCV3>;
-using S_JoinLobby_DC_GC_65_67_68_Ep3_EB = S_JoinLobbyT<LobbyFlags, PlayerLobbyDataDCGC, PlayerDispDataDCPCV3>;
-using S_JoinLobby_BB_65_67_68 = S_JoinLobbyT<LobbyFlags, PlayerLobbyDataBB, PlayerDispDataBB>;
+using S_JoinLobby_DCNTE_65_67_68 = S_JoinLobbyT<LobbyFlagsDCNTE, PlayerLobbyDataDCGC, PlayerDispDataV123>;
+using S_JoinLobby_PC_65_67_68 = S_JoinLobbyT<LobbyFlags, PlayerLobbyDataPC, PlayerDispDataV123>;
+using S_JoinLobby_DC_GC_65_67_68_Ep3_EB = S_JoinLobbyT<LobbyFlags, PlayerLobbyDataDCGC, PlayerDispDataV123>;
+using S_JoinLobby_BB_65_67_68 = S_JoinLobbyT<LobbyFlags, PlayerLobbyDataBB, PlayerDispDataV4>;
 check_struct_size(S_JoinLobby_DCNTE_65_67_68, 0x32D4);
 check_struct_size(S_JoinLobby_PC_65_67_68, 0x339C);
 check_struct_size(S_JoinLobby_DC_GC_65_67_68_Ep3_EB, 0x32DC);
@@ -1287,7 +1307,7 @@ struct S_JoinLobby_XB_65_67_68 {
   struct Entry {
     PlayerLobbyDataXB lobby_data;
     PlayerInventory inventory;
-    PlayerDispDataDCPCV3 disp;
+    PlayerDispDataV123 disp;
   } __packed_ws__(Entry, 0x468);
   // Note: not all of these will be filled in and sent if the lobby isn't full (the command size will be shorter than
   // this struct's size)
@@ -1521,10 +1541,10 @@ struct C_ConnectionInfo_DCNTE_8A {
 // header.flag is a success flag. If it's zero, the client shows an error message and disconnects. Otherwise, the
 // client responds with an 8B command.
 
-// 8A (C->S): Request lobby/game name (except DC NTE)
+// 8A (C->S): Request lobby/game name (DCv2 and later)
 // No arguments.
 
-// 8A (S->C): Lobby/game name (except DC NTE)
+// 8A (S->C): Lobby/game name (DCv2 and later)
 // Contents is a string containing the lobby or game name. All versions after DCv1 send an 8A command to request the
 // team name after joining a game. The response is used to handle the team_name token in quest strings, and appears in
 // some Challenge Mode information windows.
@@ -2623,7 +2643,7 @@ struct C_GuildCardDataRequest_BB_03DC {
 // DD (S->C): Send quest state to joining player (BB)
 // When a player joins a game with a quest already in progress, the server should send this command to the leader.
 // No arguments except header.flag, which is the client ID that the leader should send quest state to. The leader will
-// then send a series of target commands (62/6D) that the server can forward to the joining player.
+// then send 6x6D, 6x6B, 6x6C, and 6x6E, in that order, targeted at the client specified in header.flag.
 
 // DE (S->C): Rare monster list (BB)
 
@@ -2928,7 +2948,7 @@ struct S_CardBattleTableConfirmation_Ep3_E5 {
 
 struct SC_PlayerPreview_CreateCharacter_BB_00E5 {
   le_int32_t character_index = 0;
-  PlayerDispDataBBPreview preview;
+  PlayerDispDataV4Preview preview;
 } __packed_ws__(SC_PlayerPreview_CreateCharacter_BB_00E5, 0x80);
 
 // E6 (C->S): Spectator team control (Episode 3)
@@ -3014,7 +3034,7 @@ struct S_JoinSpectatorTeam_Ep3_E8 {
   struct PlayerEntry {
     /* 0000 */ PlayerLobbyDataDCGC lobby_data;
     /* 0020 */ PlayerInventory inventory;
-    /* 036C */ PlayerDispDataDCPCV3 disp;
+    /* 036C */ PlayerDispDataV123 disp;
     /* 043C */
   } __packed_ws__(PlayerEntry, 0x43C);
   /* 0080 */ parray<PlayerEntry, 4> players;
@@ -4741,7 +4761,7 @@ struct G_SyncPlayerDispAndInventory_DCNTE_6x70 {
   /* 0054 */ PlayerHoldState_DCProtos hold_state;
   /* 0064 */ le_uint32_t area = 0;
   /* 0068 */ le_uint32_t player_flags = 0;
-  /* 006C */ PlayerVisualConfig visual;
+  /* 006C */ PlayerVisualConfigV123 visual;
   /* 00BC */ PlayerStats stats;
   /* 00E0 */ le_uint32_t num_items = 0;
   /* 00E4 */ parray<PlayerInventoryItem, 0x1E> items;
@@ -4759,7 +4779,7 @@ struct G_SyncPlayerDispAndInventory_DC112000_6x70 {
   /* 0060 */ PlayerHoldState_DCProtos hold_state;
   /* 0070 */ le_uint32_t area = 0;
   /* 0074 */ le_uint32_t player_flags = 0;
-  /* 0078 */ PlayerVisualConfig visual;
+  /* 0078 */ PlayerVisualConfigV123 visual;
   /* 00C8 */ PlayerStats stats;
   /* 00EC */ le_uint32_t num_items = 0;
   /* 00F0 */ parray<PlayerInventoryItem, 0x1E> items;
@@ -4790,13 +4810,13 @@ struct G_6x70_Base_V1 {
   /* 00AC */ le_uint32_t area = 0;
   /* 00B0 */ le_uint32_t player_flags = 0;
   /* 00B4 */ parray<uint8_t, 0x14> technique_levels_v1 = 0xFF; // Last byte is uninitialized
-  /* 00C8 */ PlayerVisualConfig visual;
-  /* 0118 */
-} __packed_ws__(G_6x70_Base_V1, 0x118);
+  /* 00C8 */
+} __packed_ws__(G_6x70_Base_V1, 0xC8);
 
 struct G_SyncPlayerDispAndInventory_DC_PC_6x70 {
   /* 0000 */ G_ExtendedHeaderT<G_ClientIDHeader> header = {{0x70, 0x00, 0x0000}, sizeof(G_SyncPlayerDispAndInventory_DC_PC_6x70)};
   /* 0008 */ G_6x70_Base_V1 base;
+  /* 00D0 */ PlayerVisualConfigV123 visual;
   /* 0120 */ PlayerStats stats;
   /* 0144 */ le_uint32_t num_items = 0;
   /* 0148 */ parray<PlayerInventoryItem, 0x1E> items;
@@ -4807,6 +4827,7 @@ struct G_SyncPlayerDispAndInventory_DC_PC_6x70 {
 struct G_SyncPlayerDispAndInventory_GC_6x70 {
   /* 0000 */ G_ExtendedHeaderT<G_ClientIDHeader> header = {{0x70, 0x00, 0x0000}, sizeof(G_SyncPlayerDispAndInventory_GC_6x70)};
   /* 0008 */ G_6x70_Base_V1 base;
+  /* 00D0 */ PlayerVisualConfigV123 visual;
   /* 0120 */ PlayerStats stats;
   /* 0144 */ le_uint32_t num_items = 0;
   /* 0148 */ parray<PlayerInventoryItem, 0x1E> items;
@@ -4817,6 +4838,7 @@ struct G_SyncPlayerDispAndInventory_GC_6x70 {
 struct G_SyncPlayerDispAndInventory_XB_6x70 {
   /* 0000 */ G_ExtendedHeaderT<G_ClientIDHeader> header = {{0x70, 0x00, 0x0000}, sizeof(G_SyncPlayerDispAndInventory_XB_6x70)};
   /* 0008 */ G_6x70_Base_V1 base;
+  /* 00D0 */ PlayerVisualConfigV123 visual;
   /* 0120 */ PlayerStats stats;
   /* 0144 */ le_uint32_t num_items = 0;
   /* 0148 */ parray<PlayerInventoryItem, 0x1E> items;
@@ -4830,7 +4852,7 @@ struct G_SyncPlayerDispAndInventory_XB_6x70 {
 struct G_SyncPlayerDispAndInventory_BB_6x70 {
   /* 0000 */ G_ExtendedHeaderT<G_ClientIDHeader> header = {{0x70, 0x00, 0x0000}, sizeof(G_SyncPlayerDispAndInventory_BB_6x70)};
   /* 0008 */ G_6x70_Base_V1 base;
-  /* 0120 */ pstring<TextEncoding::UTF16_ALWAYS_MARKED, 0x10> name;
+  /* 00D0 */ PlayerVisualConfigV4 visual;
   /* 0140 */ PlayerStats stats;
   /* 0164 */ le_uint32_t num_items = 0;
   /* 0168 */ parray<PlayerInventoryItem, 0x1E> items;
@@ -5200,10 +5222,10 @@ struct G_SetChallengeTime_6x95 {
 
 struct G_SelectChallengeModeFailureOption_6x97 {
   G_UnusedHeader header;
-  le_uint32_t unused1 = 0;
+  le_uint32_t client_id = 0;
   le_uint32_t is_retry = 0;
+  le_uint32_t unused1 = 0;
   le_uint32_t unused2 = 0;
-  le_uint32_t unused3 = 0;
 } __packed_ws__(G_SelectChallengeModeFailureOption_6x97, 0x14);
 
 // 6x98: Unknown
@@ -5747,7 +5769,7 @@ struct G_ChangeLobbyMusic_Ep3_6xBF {
 // 6xBF: Give EXP (BB) (server->client only)
 // newserv implements an extension that causes this command to show the purple EXP numbers which are normally generated
 // by the client instead. This requires the server to also send the enemy ID that generated the EXP, hence the
-// extension struct here. See ServerEXPDisplay.59NL.patch.s for details.
+// extension struct here. See ServerEXPDisplay.s for details.
 
 struct G_GiveExperience_BB_6xBF {
   G_ClientIDHeader header;
