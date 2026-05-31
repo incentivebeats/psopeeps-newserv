@@ -4409,6 +4409,13 @@ static asio::awaitable<void> on_E5_BB(shared_ptr<Client> c, Channel::Message& ms
         }
         c->log.info_f("Marked BB character as Test: {}", c->character_filename());
       }
+      if (!enforce_bb_test_ship_lock(c, s->enable_test_mode)) {
+        c->unload_character(false);
+        should_send_approve = false;
+      } else if (!enforce_bb_hardcore_ship_lock(c, s->enable_hardcore_mode)) {
+        c->unload_character(false);
+        should_send_approve = false;
+      }
     } catch (const exception& e) {
       send_message_box(c, std::format("$C6New character could not be created:\n{}", e.what()));
       should_send_approve = false;

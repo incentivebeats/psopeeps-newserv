@@ -405,6 +405,13 @@ bool Client::can_see_quest(
   if (!q->has_version_any_language(this->version())) {
     return false;
   }
+  if ((this->version() == Version::BB_V4) &&
+      game &&
+      (game->mode == GameMode::SOLO) &&
+      (game->episode == Episode::EP4) &&
+      (q->meta.episode == Episode::EP4)) {
+    return true;
+  }
   return this->evaluate_quest_availability_expression(
       q->meta.available_expression, game, event, difficulty, num_players, v1_present);
 }
@@ -421,6 +428,13 @@ bool Client::can_play_quest(
   }
   if ((q->meta.max_players > 0) && (num_players > q->meta.max_players)) {
     return false;
+  }
+  if ((this->version() == Version::BB_V4) &&
+      game &&
+      (game->mode == GameMode::SOLO) &&
+      (game->episode == Episode::EP4) &&
+      (q->meta.episode == Episode::EP4)) {
+    return true;
   }
   return this->evaluate_quest_availability_expression(
       q->meta.enabled_expression, game, event, difficulty, num_players, v1_present);
