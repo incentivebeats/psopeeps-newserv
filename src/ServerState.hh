@@ -112,6 +112,7 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   std::string name;
   std::unordered_map<std::string, std::shared_ptr<PortConfiguration>> name_to_port_config;
   std::unordered_map<uint16_t, std::shared_ptr<PortConfiguration>> number_to_port_config;
+  std::unordered_map<uint16_t, uint16_t> ip_stack_port_remap;
   std::string username;
   std::string dns_server_addr;
   uint16_t dns_server_port = 0;
@@ -122,6 +123,7 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   uint64_t client_ping_interval_usecs = 30000000;
   uint64_t client_idle_timeout_usecs = 60000000;
   uint64_t patch_client_idle_timeout_usecs = 300000000;
+  uint64_t psopeeps_dcv2_exp_multiplier = 5;
   bool is_debug = false;
   bool ip_stack_debug = false;
   bool allow_unregistered_users = false;
@@ -171,8 +173,16 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   BehaviorSwitch cheat_mode_behavior = BehaviorSwitch::OFF_BY_DEFAULT;
   bool default_switch_assist_enabled = false;
   bool use_game_creator_section_id = false;
-  bool enable_hardcore_mode = false;
+  bool enable_bb_ship_selection_menu = false;
   bool use_psov2_rand_crypt = false; // Used in some tests
+  bool enable_blueballz = false;
+  int64_t blueballz_enemy_hp_scale_tier = -1; // -1 = disabled; 0..10 = scale BB enemy HP in stream files
+  bool enable_hardcore_mode = false;
+  bool enable_test_mode = false;
+  int8_t blueballz_max_tier = 10;
+  int8_t blueballz_unlocked_tier_v2 = 0;
+  int8_t blueballz_unlocked_tier_v3 = 0;
+  int8_t blueballz_unlocked_tier_v4 = 0;
   bool use_legacy_item_random_behavior = false; // Used in some tests
   bool rare_notifs_enabled_for_client_drops = false;
   bool default_rare_notifs_enabled_v1_v2 = false;
@@ -196,8 +206,6 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   std::unordered_map<uint32_t, std::shared_ptr<const SuperMap>> supermap_for_free_play_key;
   std::shared_ptr<const RoomLayoutIndex> room_layout_index;
   std::shared_ptr<const BBStreamFile> bb_stream_file;
-  std::shared_ptr<FileContentsCache> bb_system_cache;
-  std::shared_ptr<FileContentsCache> gba_files_cache;
   std::shared_ptr<const DOLFileIndex> dol_file_index;
   std::shared_ptr<const Episode3::CardIndex> ep3_card_index;
   std::shared_ptr<const Episode3::CardIndex> ep3_card_index_trial;
@@ -261,6 +269,8 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   std::vector<QuestF960Result> quest_F960_success_results;
   QuestF960Result quest_F960_failure_results;
   float bb_global_exp_multiplier = 1.0f;
+  int64_t dc_v2_exp_multiplier = 1;
+  int64_t gc_v3_exp_multiplier = 1;
   float exp_share_multiplier = 0.5f;
   float server_global_drop_rate_multiplier = 1.0f;
 
@@ -284,15 +294,14 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   std::vector<Ep3LobbyBannerEntry> ep3_lobby_banners;
 
   std::shared_ptr<AccountIndex> account_index;
-  bool allow_saving_accounts = true;
-  std::shared_ptr<IPV4RangeSet> banned_ipv4_ranges;
+  std::shared_ptr<const IPV4RangeSet> banned_ipv4_ranges;
   std::shared_ptr<TeamIndex> team_index;
   phosg::JSON team_reward_defs_json;
 
   std::shared_ptr<const Menu> information_menu_v2;
   std::shared_ptr<const Menu> information_menu_v3;
-  std::shared_ptr<std::vector<std::string>> information_contents_v2;
-  std::shared_ptr<std::vector<std::string>> information_contents_v3;
+  std::shared_ptr<const std::vector<std::string>> information_contents_v2;
+  std::shared_ptr<const std::vector<std::string>> information_contents_v3;
   std::shared_ptr<const Menu> proxy_destinations_menu_dc;
   std::shared_ptr<const Menu> proxy_destinations_menu_pc;
   std::shared_ptr<const Menu> proxy_destinations_menu_gc;
@@ -406,10 +415,7 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
 
   void set_port_configuration(const std::vector<PortConfiguration>& port_configs);
 
-  std::shared_ptr<const std::string> load_bb_file(
-      const std::string& patch_index_filename,
-      const std::string& gsl_filename = "",
-      const std::string& bb_directory_filename = "") const;
+  std::shared_ptr<const std::string> load_bb_file(const std::string& patch_index_filename) const;
   std::shared_ptr<const std::string> load_map_file(Version version, const std::string& filename) const;
   std::shared_ptr<const std::string> load_map_file_uncached(Version version, const std::string& filename) const;
 
@@ -440,7 +446,6 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   void load_teams();
   void load_patch_indexes();
   void load_maps();
-  void clear_file_caches();
   void load_battle_params();
   void load_level_tables();
   void load_text_index();

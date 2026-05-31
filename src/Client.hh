@@ -10,7 +10,6 @@
 #include "CommandFormats.hh"
 #include "Episode3/BattleRecord.hh"
 #include "Episode3/Tournament.hh"
-#include "FileContentsCache.hh"
 #include "PSOEncryption.hh"
 #include "PSOProtocol.hh"
 #include "PatchFileIndex.hh"
@@ -19,6 +18,7 @@
 #include "QuestScript.hh"
 #include "TeamIndex.hh"
 #include "Text.hh"
+#include <string>
 
 extern const uint64_t CLIENT_CONFIG_MAGIC;
 
@@ -27,7 +27,7 @@ struct Lobby;
 class Parsed6x70Data;
 
 struct GetPlayerInfoResult {
-  // Exactly one of the following two shared_ptrs is not null
+  // Exactly one of the following two std::shared_ptrs is not null
   std::shared_ptr<PSOBBCharacterFile> character;
   std::shared_ptr<PSOGCEp3CharacterFile::Character> ep3_character;
   bool is_full_info; // True if the client sent 30; false if it was 61 or 98
@@ -83,6 +83,7 @@ public:
     ITEM_DROP_NOTIFICATIONS_1                  = 0x0000000400000000,
     ITEM_DROP_NOTIFICATIONS_2                  = 0x0000000800000000,
     HAS_ENEMY_DAMAGE_SYNC_PATCH                = 0x0000001000000000, // Must be same as in EnemyDamageSync*.s
+    HAS_PSO_PEEPS_XP_PATCH                    = 0x0000200000000000, // Must be same as in PSO Peeps XP patches
 
     // Proxy option flags
     PROXY_SAVE_FILES                           = 0x0000002000000000,
@@ -140,6 +141,7 @@ public:
   std::shared_ptr<Channel> channel;
   std::shared_ptr<PSOBBMultiKeyDetectorEncryption> bb_detector_crypt;
   ServerBehavior server_behavior;
+  uint16_t listener_port = 0;
   std::unordered_map<std::string, std::function<void()>> disconnect_hooks;
   uint64_t ping_start_time = 0;
 
@@ -150,6 +152,7 @@ public:
   uint8_t override_lobby_event = 0xFF; // FF = no override
   uint8_t override_lobby_number = 0x80; // 80 = no override
   int64_t override_random_seed = -1;
+  int8_t selected_blueballz_tier = -1; // -1 = normal lobby/game; 0..10 = requested Blueballz tier
   std::unique_ptr<Variations> override_variations;
   VectorXYZF pos;
   uint32_t floor = 0x0F;
@@ -188,8 +191,9 @@ public:
   };
   bool should_update_play_time;
   std::unordered_set<uint32_t> blocked_senders;
-  std::unique_ptr<PlayerDispDataDCPCV3> v1_v2_last_reported_disp;
+  std::unique_ptr<PlayerDispDataV123> v1_v2_last_reported_disp;
   std::shared_ptr<Parsed6x70Data> last_reported_6x70;
+  std::unordered_set<uint16_t> expected_game_state_sync_commands; // (command_num << 8) | target_client_id
   // These are null unless the client is within the trade sequence (D0-D4 or EE commands)
   std::unique_ptr<PendingItemTrade> pending_item_trade;
   std::unique_ptr<PendingCardTrade> pending_card_trade;
@@ -312,7 +316,7 @@ public:
   void create_character_file(
       uint32_t guild_card_number,
       Language language,
-      const PlayerDispDataBBPreview& preview,
+      const PlayerVisualConfigV4& visual,
       std::shared_ptr<const LevelTable> level_table);
   void create_battle_overlay(std::shared_ptr<const BattleRules> rules, std::shared_ptr<const LevelTable> level_table);
   void create_challenge_overlay(Version version, size_t template_index, std::shared_ptr<const LevelTable> level_table);

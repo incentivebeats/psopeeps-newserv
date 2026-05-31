@@ -12815,7 +12815,7 @@ I 22567 2025-05-23 20:26:56 - [Commands] Sending to C-3 (Tali Lv.1) @ ipss:N-3:1
 I 22567 2025-05-23 20:26:56 - [Commands] Received from C-1 (Tali Lv.5) @ ipss:N-1:127.0.0.1:60555 (version=GC_EP3 command=60 flag=00)
 0000 | 60 00 08 00 72 01 28 F8                         | `   r (
 I 22567 2025-05-23 20:26:56 - [Commands] Sending to C-3 (Tali Lv.1) @ ipss:N-3:127.0.0.1:60595 (version=GC_EP3 command=60 flag=00)
-0000 | 60 00 08 00 72 01 28 F8                         | `   r (
+0000 | 60 00 08 00 72 01 00 00                         | `   r (
 I 22567 2025-05-23 20:26:57 - [Commands] Received from C-2 (Tali Lv.1) @ ipss:N-2:127.0.0.1:60573 (version=GC_EP3_NTE command=1D flag=00)
 0000 | 1D 00 04 00                                     |
 I 22567 2025-05-23 20:26:58 - [Commands] Received from C-3 (Tali Lv.1) @ ipss:N-3:127.0.0.1:60595 (version=GC_EP3 command=C9 flag=00)
@@ -12922,8 +12922,6 @@ I 22567 2025-05-23 20:27:03 - [C-3] Bank is empty
 I 22567 2025-05-23 20:27:03 - [Commands] Sending to C-3 (Tali Lv.1) @ ipss:N-3:127.0.0.1:60595 (version=GC_EP3 command=B1 flag=00)
 0000 | B1 00 20 00 32 30 32 35 3A 30 35 3A 32 34 3A 20 |     2025:05:24:
 0010 | 30 33 3A 32 37 3A 30 33 2E 30 30 30 00 01 00 00 | 03:27:03.000
-I 22567 2025-05-23 20:27:03 - [Commands] Sending to C-1 (Tali Lv.5) @ ipss:N-1:127.0.0.1:60555 (version=GC_EP3 command=60 flag=00)
-0000 | 60 00 08 00 72 01 00 00                         | `   r
 I 22567 2025-05-23 20:27:03 - [Commands] Received from C-3 (Tali Lv.1) @ ipss:N-3:127.0.0.1:60595 (version=GC_EP3 command=99 flag=00)
 0000 | 99 00 04 00                                     |
 I 22567 2025-05-23 20:27:04 - [Commands] Received from C-1 (Tali Lv.5) @ ipss:N-1:127.0.0.1:60555 (version=GC_EP3 command=60 flag=00)
