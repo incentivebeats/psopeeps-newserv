@@ -5345,6 +5345,16 @@ shared_ptr<Lobby> create_game_generic(
     creator_c->set_flag(Client::Flag::SHOULD_SEND_ARTIFICIAL_FLAG_STATE);
   }
 
+  if ((creator_c->version() == Version::BB_V4) &&
+      (game->mode == GameMode::SOLO) &&
+      (game->episode == Episode::EP4)) {
+    for (uint16_t flag : {0x02BD, 0x02BE, 0x02BF, 0x02C0, 0x02C1}) {
+      game->log.info_f("Unlocking BB Episode IV solo area flag {:04X}", flag);
+      game->quest_flag_values->set(game->difficulty, flag);
+    }
+    creator_c->set_flag(Client::Flag::SHOULD_SEND_ARTIFICIAL_FLAG_STATE);
+  }
+
   game->switch_flags = make_unique<SwitchFlags>();
 
   return game;
