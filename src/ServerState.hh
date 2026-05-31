@@ -206,8 +206,6 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   std::unordered_map<uint32_t, std::shared_ptr<const SuperMap>> supermap_for_free_play_key;
   std::shared_ptr<const RoomLayoutIndex> room_layout_index;
   std::shared_ptr<const BBStreamFile> bb_stream_file;
-  std::shared_ptr<FileContentsCache> bb_system_cache;
-  std::shared_ptr<FileContentsCache> gba_files_cache;
   std::shared_ptr<const DOLFileIndex> dol_file_index;
   std::shared_ptr<const Episode3::CardIndex> ep3_card_index;
   std::shared_ptr<const Episode3::CardIndex> ep3_card_index_trial;
@@ -296,15 +294,14 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   std::vector<Ep3LobbyBannerEntry> ep3_lobby_banners;
 
   std::shared_ptr<AccountIndex> account_index;
-  bool allow_saving_accounts = true;
-  std::shared_ptr<IPV4RangeSet> banned_ipv4_ranges;
+  std::shared_ptr<const IPV4RangeSet> banned_ipv4_ranges;
   std::shared_ptr<TeamIndex> team_index;
   phosg::JSON team_reward_defs_json;
 
   std::shared_ptr<const Menu> information_menu_v2;
   std::shared_ptr<const Menu> information_menu_v3;
-  std::shared_ptr<std::vector<std::string>> information_contents_v2;
-  std::shared_ptr<std::vector<std::string>> information_contents_v3;
+  std::shared_ptr<const std::vector<std::string>> information_contents_v2;
+  std::shared_ptr<const std::vector<std::string>> information_contents_v3;
   std::shared_ptr<const Menu> proxy_destinations_menu_dc;
   std::shared_ptr<const Menu> proxy_destinations_menu_pc;
   std::shared_ptr<const Menu> proxy_destinations_menu_gc;
@@ -418,10 +415,7 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
 
   void set_port_configuration(const std::vector<PortConfiguration>& port_configs);
 
-  std::shared_ptr<const std::string> load_bb_file(
-      const std::string& patch_index_filename,
-      const std::string& gsl_filename = "",
-      const std::string& bb_directory_filename = "") const;
+  std::shared_ptr<const std::string> load_bb_file(const std::string& patch_index_filename) const;
   std::shared_ptr<const std::string> load_map_file(Version version, const std::string& filename) const;
   std::shared_ptr<const std::string> load_map_file_uncached(Version version, const std::string& filename) const;
 
@@ -452,7 +446,6 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   void load_teams();
   void load_patch_indexes();
   void load_maps();
-  void clear_file_caches();
   void load_battle_params();
   void load_level_tables();
   void load_text_index();

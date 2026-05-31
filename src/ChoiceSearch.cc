@@ -5,9 +5,7 @@
 
 #include "Client.hh"
 
-using namespace std;
-
-const vector<ChoiceSearchCategory> CHOICE_SEARCH_CATEGORIES({
+const std::vector<ChoiceSearchCategory> CHOICE_SEARCH_CATEGORIES({
     ChoiceSearchCategory{
         .id = 0x0001,
         .name = "Level",
@@ -24,7 +22,7 @@ const vector<ChoiceSearchCategory> CHOICE_SEARCH_CATEGORIES({
             {0x0009, "Level 121-160"},
             {0x000A, "Level 161-200"},
         },
-        .client_matches = +[](shared_ptr<Client> searcher_c, shared_ptr<Client> target_c, uint16_t choice_id) -> bool {
+        .client_matches = +[](std::shared_ptr<Client> searcher_c, std::shared_ptr<Client> target_c, uint16_t choice_id) -> bool {
           if (choice_id == 0x0000) {
             return true;
           }
@@ -75,18 +73,18 @@ const vector<ChoiceSearchCategory> CHOICE_SEARCH_CATEGORIES({
             {0x0008, "FOnewm"},
             {0x0009, "FOnewearl"},
         },
-        .client_matches = +[](shared_ptr<Client>, shared_ptr<Client> target_c, uint16_t choice_id) -> bool {
+        .client_matches = +[](std::shared_ptr<Client>, std::shared_ptr<Client> target_c, uint16_t choice_id) -> bool {
           switch (choice_id) {
             case 0x0000:
               return true;
             case 0x0010:
-              return target_c->character_file()->disp.visual.class_flags & 0x20;
+              return target_c->character_file()->disp.visual.sh.class_flags & 0x20;
             case 0x0011:
-              return target_c->character_file()->disp.visual.class_flags & 0x40;
+              return target_c->character_file()->disp.visual.sh.class_flags & 0x40;
             case 0x0012:
-              return target_c->character_file()->disp.visual.class_flags & 0x80;
+              return target_c->character_file()->disp.visual.sh.class_flags & 0x80;
             default:
-              return ((choice_id - 1) == target_c->character_file()->disp.visual.char_class);
+              return ((choice_id - 1) == target_c->character_file()->disp.visual.sh.char_class);
           }
         },
     },
@@ -102,7 +100,7 @@ const vector<ChoiceSearchCategory> CHOICE_SEARCH_CATEGORIES({
             {0x0005, "GC Episode 3"},
             {0x0006, "BB"},
         },
-        .client_matches = +[](shared_ptr<Client>, shared_ptr<Client> target_c, uint16_t choice_id) -> bool {
+        .client_matches = +[](std::shared_ptr<Client>, std::shared_ptr<Client> target_c, uint16_t choice_id) -> bool {
           if (choice_id == 0x0000) {
             return true;
           }
@@ -142,7 +140,7 @@ const vector<ChoiceSearchCategory> CHOICE_SEARCH_CATEGORIES({
             {0x0005, "Battle"},
             {0x0006, "Challenge"},
         },
-        .client_matches = +[](shared_ptr<Client>, shared_ptr<Client> target_c, uint16_t choice_id) -> bool {
+        .client_matches = +[](std::shared_ptr<Client>, std::shared_ptr<Client> target_c, uint16_t choice_id) -> bool {
           uint16_t target_choice_id = target_c->character_file()->choice_search_config.get_setting(0x0204);
           return (choice_id == 0) || (target_choice_id == 0) || (choice_id == target_choice_id);
         },
