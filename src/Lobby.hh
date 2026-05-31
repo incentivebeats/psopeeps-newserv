@@ -41,7 +41,7 @@ struct Lobby : public std::enable_shared_from_this<Lobby> {
   struct FloorItemManager {
     phosg::PrefixedLogger log;
     uint64_t next_drop_number;
-    // It's important that this is a map and not an unordered_map. See the comment in send_game_item_state for details.
+    // It's important that this is a map and not an std::unordered_map. See the comment in send_game_item_state for details.
     std::map<uint32_t, std::shared_ptr<FloorItem>> items; // Keyed on item_id
     std::array<std::map<uint64_t, std::shared_ptr<FloorItem>>, 12> queue_for_client;
 
@@ -81,6 +81,7 @@ struct Lobby : public std::enable_shared_from_this<Lobby> {
     START_BATTLE_PLAYER_IMMEDIATELY = 0x00010000,
     CANNOT_CHANGE_CHEAT_MODE        = 0x00020000,
     USE_CREATOR_SECTION_ID          = 0x00040000,
+    BLUEBALLZ_PLUS0                 = 0x00080000,
     // Flags used only for lobbies
     PUBLIC                          = 0x01000000,
     DEFAULT                         = 0x02000000,
@@ -118,6 +119,7 @@ struct Lobby : public std::enable_shared_from_this<Lobby> {
   Episode episode = Episode::NONE;
   GameMode mode = GameMode::NORMAL;
   Difficulty difficulty = Difficulty::NORMAL;
+  int8_t blueballz_tier = -1; // -1 = disabled; 0..10 = Blueballz +0..+10
   float base_exp_multiplier = 1.0f;
   float exp_share_multiplier = 0.5f;
   float challenge_exp_multiplier = 1.0f;

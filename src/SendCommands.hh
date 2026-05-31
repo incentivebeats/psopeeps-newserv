@@ -24,7 +24,7 @@ extern const std::unordered_set<std::string> bb_crypt_initial_client_commands;
 
 constexpr size_t V3_V4_QUEST_LOAD_MAX_CHUNKS_IN_FLIGHT = 4;
 
-// TODO: Many of these functions should take a shared_ptr<Channel> instead of a shared_ptr<Client>. Refactor functions
+// TODO: Many of these functions should take a std::shared_ptr<Channel> instead of a std::shared_ptr<Client>. Refactor functions
 // appropriately.
 
 // Note: There are so many versions of this function for a few reasons:
@@ -192,7 +192,7 @@ void send_pc_console_split_reconnect(
 
 void send_client_init_bb(std::shared_ptr<Client> c, uint32_t error);
 void send_system_file_bb(std::shared_ptr<Client> c);
-void send_player_preview_bb(std::shared_ptr<Client> c, int8_t character_index, const PlayerDispDataBBPreview* preview);
+void send_player_preview_bb(std::shared_ptr<Client> c, int8_t character_index, const PlayerDispDataV4Preview* preview);
 void send_accept_client_checksum_bb(std::shared_ptr<Client> c);
 void send_guild_card_header_bb(std::shared_ptr<Client> c);
 void send_guild_card_chunk_bb(std::shared_ptr<Client> c, size_t chunk_index);

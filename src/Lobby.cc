@@ -11,7 +11,6 @@
 #include "Text.hh"
 #include <fstream>
 
-using namespace std;
 
 
 static bool bb_character_is_hardcore_for_lobby_join(const std::shared_ptr<Client>& c) {
@@ -40,17 +39,17 @@ bool Lobby::FloorItemManager::exists(uint32_t item_id) const {
   return this->items.count(item_id);
 }
 
-shared_ptr<Lobby::FloorItem> Lobby::FloorItemManager::find(uint32_t item_id) const {
+std::shared_ptr<Lobby::FloorItem> Lobby::FloorItemManager::find(uint32_t item_id) const {
   return this->items.at(item_id);
 }
 
 void Lobby::FloorItemManager::add(
     const ItemData& item,
     const VectorXZF& pos,
-    shared_ptr<const MapState::ObjectState> from_obj,
-    shared_ptr<const MapState::EnemyState> from_ene,
+    std::shared_ptr<const MapState::ObjectState> from_obj,
+    std::shared_ptr<const MapState::EnemyState> from_ene,
     uint16_t flags) {
-  auto fi = make_shared<FloorItem>();
+  auto fi = std::make_shared<FloorItem>();
   fi->data = item;
   fi->pos = pos;
   fi->drop_number = this->next_drop_number++;
@@ -60,14 +59,14 @@ void Lobby::FloorItemManager::add(
   this->add(fi);
 }
 
-void Lobby::FloorItemManager::add(shared_ptr<Lobby::FloorItem> fi) {
+void Lobby::FloorItemManager::add(std::shared_ptr<Lobby::FloorItem> fi) {
   if (fi->flags == 0) {
-    throw logic_error("floor item is not visible to any player");
+    throw std::logic_error("floor item is not visible to any player");
   }
 
   auto emplace_ret = this->items.emplace(fi->data.id, fi);
   if (!emplace_ret.second) {
-    throw runtime_error("floor item already exists with the same ID");
+    throw std::runtime_error("floor item already exists with the same ID");
   }
   for (size_t z = 0; z < 12; z++) {
     if (fi->visible_to_client(z)) {
@@ -81,15 +80,15 @@ void Lobby::FloorItemManager::add(shared_ptr<Lobby::FloorItem> fi) {
 std::shared_ptr<Lobby::FloorItem> Lobby::FloorItemManager::remove(uint32_t item_id, uint8_t client_id) {
   auto item_it = this->items.find(item_id);
   if (item_it == this->items.end()) {
-    throw out_of_range("item not present");
+    throw std::out_of_range("item not present");
   }
   auto fi = item_it->second;
   if ((client_id != 0xFF) && !fi->visible_to_client(client_id)) {
-    throw runtime_error("client does not have access to item");
+    throw std::runtime_error("client does not have access to item");
   }
   for (size_t z = 0; z < 12; z++) {
     if (fi->visible_to_client(z) && !this->queue_for_client[z].erase(fi->drop_number)) {
-      throw logic_error("item queue for client is inconsistent");
+      throw std::logic_error("item queue for client is inconsistent");
     }
   }
   this->items.erase(item_it);
@@ -99,7 +98,7 @@ std::shared_ptr<Lobby::FloorItem> Lobby::FloorItemManager::remove(uint32_t item_
 }
 
 std::unordered_set<std::shared_ptr<Lobby::FloorItem>> Lobby::FloorItemManager::evict() {
-  unordered_set<shared_ptr<FloorItem>> ret;
+  std::unordered_set<std::shared_ptr<FloorItem>> ret;
   for (size_t z = 0; z < 12; z++) {
     while (this->queue_for_client[z].size() > 48) {
       ret.emplace(this->remove(this->queue_for_client[z].begin()->second->data.id, 0xFF));
@@ -110,7 +109,7 @@ std::unordered_set<std::shared_ptr<Lobby::FloorItem>> Lobby::FloorItemManager::e
 }
 
 void Lobby::FloorItemManager::clear_inaccessible(uint16_t remaining_clients_mask) {
-  unordered_set<uint32_t> item_ids_to_delete;
+  std::unordered_set<uint32_t> item_ids_to_delete;
   for (const auto& it : this->items) {
     if ((it.second->flags & remaining_clients_mask) == 0) {
       item_ids_to_delete.emplace(it.first);
@@ -123,7 +122,7 @@ void Lobby::FloorItemManager::clear_inaccessible(uint16_t remaining_clients_mask
 }
 
 void Lobby::FloorItemManager::clear_private() {
-  unordered_set<uint32_t> item_ids_to_delete;
+  std::unordered_set<uint32_t> item_ids_to_delete;
   for (const auto& it : this->items) {
     if ((it.second->flags & 0x00F) != 0x00F) {
       item_ids_to_delete.emplace(it.first);
@@ -146,7 +145,7 @@ void Lobby::FloorItemManager::clear() {
 }
 
 uint32_t Lobby::FloorItemManager::reassign_all_item_ids(uint32_t next_item_id) {
-  ::map<uint32_t, shared_ptr<FloorItem>> old_items;
+  std::map<uint32_t, std::shared_ptr<FloorItem>> old_items;
   old_items.swap(this->items);
   for (auto& queue : this->queue_for_client) {
     queue.clear();
@@ -158,13 +157,13 @@ uint32_t Lobby::FloorItemManager::reassign_all_item_ids(uint32_t next_item_id) {
   return next_item_id;
 }
 
-Lobby::Lobby(shared_ptr<ServerState> s, uint32_t id, bool is_game)
+Lobby::Lobby(std::shared_ptr<ServerState> s, uint32_t id, bool is_game)
     : server_state(s),
       log(std::format("[{}:{:X}] ", is_game ? "Game" : "Lobby", id), lobby_log.min_level),
       creation_time(phosg::now()),
       lobby_id(id),
       random_seed(phosg::random_object<uint32_t>()),
-      rand_crypt(make_shared<DisabledRandomGenerator>()),
+      rand_crypt(std::make_shared<DisabledRandomGenerator>()),
       drop_mode(ServerDropMode::CLIENT),
       idle_timeout_timer(*s->io_context) {
   this->log.info_f("Created");
@@ -194,17 +193,17 @@ uint8_t Lobby::area_for_floor(Version version, uint8_t floor) const {
   return sdt->default_floor_to_area(this->episode).at(floor);
 }
 
-shared_ptr<ServerState> Lobby::require_server_state() const {
+std::shared_ptr<ServerState> Lobby::require_server_state() const {
   auto s = this->server_state.lock();
   if (!s) {
-    throw logic_error("server is deleted");
+    throw std::logic_error("server is deleted");
   }
   return s;
 }
 
-shared_ptr<Lobby::ChallengeParameters> Lobby::require_challenge_params() const {
+std::shared_ptr<Lobby::ChallengeParameters> Lobby::require_challenge_params() const {
   if (!this->challenge_params) {
-    throw runtime_error("challenge params are missing");
+    throw std::runtime_error("challenge params are missing");
   }
   return this->challenge_params;
 }
@@ -222,17 +221,17 @@ void Lobby::create_item_creator(Version logic_version) {
     logic_version = leader_c ? leader_c->version() : Version::BB_V4;
   }
 
-  shared_ptr<RandomGenerator> rand_crypt;
+  std::shared_ptr<RandomGenerator> rand_crypt;
   if (s->use_psov2_rand_crypt) {
-    rand_crypt = make_shared<PSOV2Encryption>(this->rand_crypt->seed());
+    rand_crypt = std::make_shared<PSOV2Encryption>(this->rand_crypt->seed());
   } else {
-    rand_crypt = make_shared<MT19937Generator>(this->rand_crypt->seed());
+    rand_crypt = std::make_shared<MT19937Generator>(this->rand_crypt->seed());
   }
   uint8_t effective_section_id = this->effective_section_id();
   if (effective_section_id >= 10) {
     effective_section_id = 0x00;
   }
-  this->item_creator = make_shared<ItemCreator>(
+  this->item_creator = std::make_shared<ItemCreator>(
       s->common_item_set(logic_version, this->quest),
       s->rare_item_set(logic_version, this->quest),
       s->armor_random_set,
@@ -246,6 +245,11 @@ void Lobby::create_item_creator(Version logic_version) {
       effective_section_id,
       rand_crypt,
       this->quest ? this->quest->meta.battle_rules : nullptr);
+  if (this->blueballz_tier >= 0) {
+    double rare_mult = 1.25 + (static_cast<double>(this->blueballz_tier) * 0.25);
+    this->item_creator->set_rare_drop_rate_multiplier(rare_mult);
+    this->log.info_f("Blueballz +{} rare drop rate multiplier set to {:g}x", this->blueballz_tier, rare_mult);
+  }
   if (s->use_legacy_item_random_behavior) {
     this->item_creator->set_legacy_replay();
   }
@@ -260,7 +264,7 @@ uint8_t Lobby::effective_section_id() const {
   }
   auto leader = this->clients.at(this->leader_id);
   if (leader) {
-    return leader->character_file()->disp.visual.section_id;
+    return leader->character_file()->disp.visual.sh.section_id;
   }
   return 0xFF;
 }
@@ -290,13 +294,13 @@ void Lobby::load_maps() {
   if (this->quest) {
     this->log.info_f("Loading quest supermap");
     auto supermap = this->quest->get_supermap(this->random_seed);
-    this->map_state = make_shared<MapState>(
+    this->map_state = std::make_shared<MapState>(
         this->lobby_id, this->difficulty, this->event, this->random_seed, this->rare_enemy_rates, this->rand_crypt, supermap);
   } else {
     this->log.info_f("Loading free play supermaps");
     auto s = this->require_server_state();
     auto supermaps = s->supermaps_for_variations(this->episode, this->mode, this->difficulty, this->variations);
-    this->map_state = make_shared<MapState>(
+    this->map_state = std::make_shared<MapState>(
         this->lobby_id, this->difficulty, this->event, this->random_seed, this->rare_enemy_rates, this->rand_crypt, supermaps);
   }
 
@@ -339,7 +343,7 @@ void Lobby::create_ep3_server() {
   } else {
     options.behavior_flags &= (~Episode3::BehaviorFlag::IS_TRIAL_EDITION);
   }
-  this->ep3_server = make_shared<Episode3::Server>(this->shared_from_this(), std::move(options));
+  this->ep3_server = std::make_shared<Episode3::Server>(this->shared_from_this(), std::move(options));
   this->ep3_server->init();
 }
 
@@ -397,9 +401,9 @@ bool Lobby::any_v1_clients_present() const {
   return false;
 }
 
-void Lobby::add_client(shared_ptr<Client> c, ssize_t required_client_id) {
+void Lobby::add_client(std::shared_ptr<Client> c, ssize_t required_client_id) {
   if (!c->login) {
-    throw runtime_error("client is not logged in");
+    throw std::runtime_error("client is not logged in");
   }
 
   ssize_t index;
@@ -407,7 +411,7 @@ void Lobby::add_client(shared_ptr<Client> c, ssize_t required_client_id) {
 
   if (required_client_id >= 0) {
     if (this->clients.at(required_client_id).get()) {
-      throw out_of_range("required slot is in use");
+      throw std::out_of_range("required slot is in use");
     }
     this->clients[required_client_id] = c;
     index = required_client_id;
@@ -420,7 +424,7 @@ void Lobby::add_client(shared_ptr<Client> c, ssize_t required_client_id) {
       }
     }
     if (index < min_client_id) {
-      throw out_of_range("no space left in lobby");
+      throw std::out_of_range("no space left in lobby");
     }
   } else {
     for (index = min_client_id; index < this->max_clients; index++) {
@@ -430,7 +434,7 @@ void Lobby::add_client(shared_ptr<Client> c, ssize_t required_client_id) {
       }
     }
     if (index >= this->max_clients) {
-      throw out_of_range("no space left in lobby");
+      throw std::out_of_range("no space left in lobby");
     }
   }
 
@@ -477,11 +481,11 @@ void Lobby::add_client(shared_ptr<Client> c, ssize_t required_client_id) {
     PlayerLobbyDataDCGC lobby_data;
     lobby_data.player_tag = 0x00010000;
     lobby_data.guild_card_number = c->login->account->account_id;
-    lobby_data.name.encode(p->disp.name.decode(c->language()), c->language());
+    lobby_data.name.encode(p->disp.visual.name.decode(c->language()), c->language());
     this->battle_record->add_player(
         lobby_data,
         p->inventory,
-        p->disp.to_dcpcv3<false>(c->language(), c->language()),
+        p->disp.to_v123<false>(c->language(), c->language()),
         c->ep3_config ? (c->ep3_config->online_clv_exp / 100) : 0);
   }
 
@@ -503,10 +507,10 @@ void Lobby::add_client(shared_ptr<Client> c, ssize_t required_client_id) {
   }
 }
 
-void Lobby::remove_client(shared_ptr<Client> c) {
+void Lobby::remove_client(std::shared_ptr<Client> c) {
   if (this->clients.at(c->lobby_client_id) != c) {
     auto other_c = this->clients[c->lobby_client_id].get();
-    throw logic_error(std::format(
+    throw std::logic_error(std::format(
         "client\'s lobby client id ({}) does not match client list ({})",
         c->lobby_client_id,
         static_cast<uint8_t>(other_c ? other_c->lobby_client_id : 0xFF)));
@@ -579,20 +583,20 @@ void Lobby::remove_client(shared_ptr<Client> c) {
   }
 }
 
-void Lobby::move_client_to_lobby(shared_ptr<Lobby> dest_lobby, shared_ptr<Client> c, ssize_t required_client_id) {
+void Lobby::move_client_to_lobby(std::shared_ptr<Lobby> dest_lobby, std::shared_ptr<Client> c, ssize_t required_client_id) {
   if (dest_lobby.get() == this) {
     return;
   }
 
   if (required_client_id >= 0) {
     if (dest_lobby->clients.at(required_client_id)) {
-      throw out_of_range("required slot is in use");
+      throw std::out_of_range("required slot is in use");
     }
   } else {
     ssize_t min_client_id = this->check_flag(Lobby::Flag::IS_SPECTATOR_TEAM) ? 4 : 0;
     size_t available_slots = dest_lobby->max_clients - min_client_id;
     if (dest_lobby->count_clients() >= available_slots) {
-      throw out_of_range("no space left in lobby");
+      throw std::out_of_range("no space left in lobby");
     }
   }
 
@@ -600,7 +604,7 @@ void Lobby::move_client_to_lobby(shared_ptr<Lobby> dest_lobby, shared_ptr<Client
   dest_lobby->add_client(c, required_client_id);
 }
 
-shared_ptr<Client> Lobby::find_client(const string* identifier, uint64_t account_id) {
+std::shared_ptr<Client> Lobby::find_client(const std::string* identifier, uint64_t account_id) {
   for (size_t x = 0; x < this->max_clients; x++) {
     auto lc = this->clients[x];
     if (!lc) {
@@ -609,12 +613,12 @@ shared_ptr<Client> Lobby::find_client(const string* identifier, uint64_t account
     if (account_id && lc->login && (lc->login->account->account_id == account_id)) {
       return lc;
     }
-    if (identifier && (lc->character_file()->disp.name.eq(*identifier, lc->language()))) {
+    if (identifier && (lc->character_file()->disp.visual.name.eq(*identifier, lc->language()))) {
       return lc;
     }
   }
 
-  throw out_of_range("client not found");
+  throw std::out_of_range("client not found");
 }
 
 
@@ -650,10 +654,10 @@ static void log_hardcore_inventory_legality_for_lobby_join(const std::shared_ptr
 
     try {
       uint32_t primary_id = item.primary_identifier();
-      string description;
+      std::string description;
       try {
         description = name_index->describe_item(item, 0);
-      } catch (const exception& e) {
+      } catch (const std::exception& e) {
         c->log.warning_f(
             "Hardcore item legality audit [{}]: slot={} item={} primary={:06X} describe failed: {}",
             context,
@@ -677,7 +681,7 @@ static void log_hardcore_inventory_legality_for_lobby_join(const std::shared_ptr
               max_stack,
               description);
         }
-      } catch (const exception& e) {
+      } catch (const std::exception& e) {
         c->log.warning_f(
             "Hardcore item legality audit [{}]: slot={} item={} primary={:06X} stack check failed: {}",
             context,
@@ -700,7 +704,7 @@ static void log_hardcore_inventory_legality_for_lobby_join(const std::shared_ptr
                 mag_level,
                 description);
           }
-        } catch (const exception& e) {
+        } catch (const std::exception& e) {
           c->log.warning_f(
               "Hardcore item legality audit [{}]: slot={} mag={} primary={:06X} mag-level check failed: {}",
               context,
@@ -711,7 +715,7 @@ static void log_hardcore_inventory_legality_for_lobby_join(const std::shared_ptr
         }
       }
 
-    } catch (const exception& e) {
+    } catch (const std::exception& e) {
       c->log.warning_f(
           "Hardcore item legality audit [{}]: slot={} item={} primary_identifier failed: {}",
           context,
@@ -745,10 +749,10 @@ static void log_hardcore_inventory_legality_for_lobby_join(const std::shared_ptr
 
     try {
       uint32_t primary_id = item.primary_identifier();
-      string description;
+      std::string description;
       try {
         description = name_index->describe_item(item, 0);
-      } catch (const exception& e) {
+      } catch (const std::exception& e) {
         c->log.warning_f(
             "Hardcore item legality audit [{}]: bank_slot={} item={} primary={:06X} describe failed: {}",
             context,
@@ -772,7 +776,7 @@ static void log_hardcore_inventory_legality_for_lobby_join(const std::shared_ptr
               max_stack,
               description);
         }
-      } catch (const exception& e) {
+      } catch (const std::exception& e) {
         c->log.warning_f(
             "Hardcore item legality audit [{}]: bank_slot={} item={} primary={:06X} bank stack check failed: {}",
             context,
@@ -795,7 +799,7 @@ static void log_hardcore_inventory_legality_for_lobby_join(const std::shared_ptr
                 mag_level,
                 description);
           }
-        } catch (const exception& e) {
+        } catch (const std::exception& e) {
           c->log.warning_f(
               "Hardcore item legality audit [{}]: bank_slot={} mag={} primary={:06X} mag-level check failed: {}",
               context,
@@ -806,7 +810,7 @@ static void log_hardcore_inventory_legality_for_lobby_join(const std::shared_ptr
         }
       }
 
-    } catch (const exception& e) {
+    } catch (const std::exception& e) {
       c->log.warning_f(
           "Hardcore item legality audit [{}]: bank_slot={} item={} primary_identifier failed: {}",
           context,
@@ -829,7 +833,7 @@ static void log_hardcore_inventory_legality_for_lobby_join(const std::shared_ptr
             warn_above);
       }
       return used;
-    } catch (const exception& e) {
+    } catch (const std::exception& e) {
       c->log.warning_f(
           "Hardcore item legality audit [{}]: material {} usage check failed: {}",
           context,
@@ -863,7 +867,7 @@ static void log_hardcore_inventory_legality_for_lobby_join(const std::shared_ptr
 
   try {
     auto pmt = s->item_parameter_table(Version::BB_V4);
-    uint8_t char_class = p->disp.visual.char_class;
+    uint8_t char_class = p->disp.visual.sh.char_class;
 
     for (uint8_t tech_num = 0; tech_num < 0x13; tech_num++) {
       uint8_t level = p->get_technique_level(tech_num);
@@ -882,7 +886,7 @@ static void log_hardcore_inventory_legality_for_lobby_join(const std::shared_ptr
             static_cast<size_t>(char_class));
       }
     }
-  } catch (const exception& e) {
+  } catch (const std::exception& e) {
     c->log.warning_f(
         "Hardcore item legality audit [{}]: technique legality check failed: {}",
         context,
@@ -893,9 +897,9 @@ static void log_hardcore_inventory_legality_for_lobby_join(const std::shared_ptr
            EquipSlot::UNIT_1, EquipSlot::UNIT_2, EquipSlot::UNIT_3, EquipSlot::UNIT_4}) {
     try {
       inv.find_equipped_item(slot);
-    } catch (const out_of_range&) {
+    } catch (const std::out_of_range&) {
       // Empty equip slots are normal.
-    } catch (const exception& e) {
+    } catch (const std::exception& e) {
       c->log.warning_f(
           "Hardcore item legality audit [{}]: equipped-slot check failed: {}",
           context,
@@ -972,7 +976,7 @@ bool Lobby::item_exists(uint8_t floor, uint32_t item_id) const {
   return this->floor_item_managers.at(floor).exists(item_id);
 }
 
-shared_ptr<Lobby::FloorItem> Lobby::find_item(uint8_t floor, uint32_t item_id) const {
+std::shared_ptr<Lobby::FloorItem> Lobby::find_item(uint8_t floor, uint32_t item_id) const {
   return this->floor_item_managers.at(floor).find(item_id);
 }
 
@@ -988,7 +992,7 @@ void Lobby::add_item(
   this->evict_items_from_floor(floor);
 }
 
-void Lobby::add_item(uint8_t floor, shared_ptr<FloorItem> fi) {
+void Lobby::add_item(uint8_t floor, std::shared_ptr<FloorItem> fi) {
   auto& m = this->floor_item_managers.at(floor);
   m.add(fi);
   this->evict_items_from_floor(floor);
@@ -1010,7 +1014,7 @@ void Lobby::evict_items_from_floor(uint8_t floor) {
   }
 }
 
-shared_ptr<Lobby::FloorItem> Lobby::remove_item(uint8_t floor, uint32_t item_id, uint8_t requesting_client_id) {
+std::shared_ptr<Lobby::FloorItem> Lobby::remove_item(uint8_t floor, uint32_t item_id, uint8_t requesting_client_id) {
   return this->floor_item_managers.at(floor).remove(item_id, requesting_client_id);
 }
 
@@ -1031,7 +1035,7 @@ void Lobby::on_item_id_generated_externally(uint32_t item_id) {
   }
 }
 
-void Lobby::assign_inventory_and_bank_item_ids(shared_ptr<Client> c, bool consume_ids) {
+void Lobby::assign_inventory_and_bank_item_ids(std::shared_ptr<Client> c, bool consume_ids) {
   auto p = c->character_file();
   uint32_t orig_next_item_id = this->next_item_id_for_client.at(c->lobby_client_id);
   for (size_t z = 0; z < p->inventory.num_items; z++) {
@@ -1056,8 +1060,8 @@ void Lobby::assign_inventory_and_bank_item_ids(shared_ptr<Client> c, bool consum
   }
 }
 
-unordered_map<uint32_t, shared_ptr<Client>> Lobby::clients_by_account_id() const {
-  unordered_map<uint32_t, shared_ptr<Client>> ret;
+std::unordered_map<uint32_t, std::shared_ptr<Client>> Lobby::clients_by_account_id() const {
+  std::unordered_map<uint32_t, std::shared_ptr<Client>> ret;
   for (auto c : this->clients) {
     if (c && c->login) {
       ret.emplace(c->login->account->account_id, c);
@@ -1069,7 +1073,7 @@ unordered_map<uint32_t, shared_ptr<Client>> Lobby::clients_by_account_id() const
 QuestIndex::IncludeCondition Lobby::quest_include_condition() const {
   size_t num_players = this->count_clients();
   bool v1_present = this->any_v1_clients_present();
-  return [this, num_players, v1_present](shared_ptr<const Quest> q) -> QuestIndex::IncludeState {
+  return [this, num_players, v1_present](std::shared_ptr<const Quest> q) -> QuestIndex::IncludeState {
     bool is_enabled = true;
     for (const auto& lc : this->clients) {
       auto this_sh = this->shared_from_this();
@@ -1084,7 +1088,7 @@ QuestIndex::IncludeCondition Lobby::quest_include_condition() const {
   };
 }
 
-bool Lobby::compare_shared(const shared_ptr<const Lobby>& a, const shared_ptr<const Lobby>& b) {
+bool Lobby::compare_shared(const std::shared_ptr<const Lobby>& a, const std::shared_ptr<const Lobby>& b) {
   // Sort keys:
   // 1. Priority class: has free space < empty (persistent) < full < non-joinable (in quest/battle)
   // 2. Password: public < locked
@@ -1092,7 +1096,7 @@ bool Lobby::compare_shared(const shared_ptr<const Lobby>& a, const shared_ptr<co
   // 4. Episode: 1 < 2 < 4
   // 5. Difficulty: Normal < Hard < Very Hard < Ultimate
   // 6. Game name
-  static auto get_priority = +[](const shared_ptr<const Lobby>& l) -> size_t {
+  static auto get_priority = +[](const std::shared_ptr<const Lobby>& l) -> size_t {
     if (l->check_flag(Lobby::Flag::QUEST_SELECTION_IN_PROGRESS) ||
         l->check_flag(Lobby::Flag::QUEST_IN_PROGRESS) ||
         l->check_flag(Lobby::Flag::BATTLE_IN_PROGRESS)) {
@@ -1174,6 +1178,6 @@ const char* phosg::name_for_enum<Lobby::JoinError>(Lobby::JoinError value) {
     case Lobby::JoinError::NO_ACCESS_TO_QUEST:
       return "NO_ACCESS_TO_QUEST";
     default:
-      throw runtime_error("invalid drop mode");
+      throw std::runtime_error("invalid drop mode");
   }
 }
