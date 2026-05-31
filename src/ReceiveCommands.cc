@@ -4409,6 +4409,13 @@ static asio::awaitable<void> on_E5_BB(shared_ptr<Client> c, Channel::Message& ms
         }
         c->log.info_f("Marked BB character as Test: {}", c->character_filename());
       }
+      if (!enforce_bb_test_ship_lock(c, s->enable_test_mode)) {
+        c->unload_character(false);
+        should_send_approve = false;
+      } else if (!enforce_bb_hardcore_ship_lock(c, s->enable_hardcore_mode)) {
+        c->unload_character(false);
+        should_send_approve = false;
+      }
     } catch (const exception& e) {
       send_message_box(c, std::format("$C6New character could not be created:\n{}", e.what()));
       should_send_approve = false;
@@ -5334,6 +5341,16 @@ shared_ptr<Lobby> create_game_generic(
       if (game->quest_flags_known) {
         game->quest_flags_known->set(game->difficulty, it.first);
       }
+    }
+    creator_c->set_flag(Client::Flag::SHOULD_SEND_ARTIFICIAL_FLAG_STATE);
+  }
+
+  if ((creator_c->version() == Version::BB_V4) &&
+      (game->mode == GameMode::SOLO) &&
+      (game->episode == Episode::EP4)) {
+    for (uint16_t flag : {0x0046, 0x0047, 0x0048, 0x02BD, 0x02BE, 0x02BF, 0x02C0, 0x02C1}) {
+      game->log.info_f("Unlocking BB Episode IV solo area flag {:04X}", flag);
+      game->quest_flag_values->set(game->difficulty, flag);
     }
     creator_c->set_flag(Client::Flag::SHOULD_SEND_ARTIFICIAL_FLAG_STATE);
   }
