@@ -5312,6 +5312,20 @@ shared_ptr<Lobby> create_game_generic(
   }
   game->load_maps(); // Load free-play maps
 
+  if ((creator_c->version() == Version::BB_V4) &&
+      (game->mode == GameMode::SOLO) &&
+      (game->episode == Episode::EP4)) {
+    for (auto obj_st : game->map_state->iter_object_states(creator_c->version())) {
+      const auto& obj_v = obj_st->super_obj->version(creator_c->version());
+      if (obj_v.set_entry &&
+          (obj_st->super_obj->floor == 0x00) &&
+          (obj_v.set_entry->base_type == 0x0048)) {
+        obj_st->game_flags |= 0x0001;
+        game->log.info_f("Unlocked BB Episode IV solo Pioneer 2 warp door K-{:03X}", obj_st->k_id);
+      }
+    }
+  }
+
   // The game's quest flags are inherited from the creator, if known
   if (creator_c->version() == Version::BB_V4) {
     game->quest_flag_values = make_unique<QuestFlags>(p->quest_flags);
