@@ -3587,6 +3587,20 @@ static void on_set_quest_flag(std::shared_ptr<Client> c, SubcommandMessage& msg)
             l->quest_flags_known->set(difficulty, bb_main_warp_flag_num);
           }
           l->quest_flag_values->set(difficulty, bb_main_warp_flag_num);
+
+          c->log.info_f(
+              "Hardcore BB progression mirror: sending quest flag {}:{:04X} to BB clients",
+              name_for_difficulty(difficulty),
+              bb_main_warp_flag_num);
+          G_UpdateQuestFlag_V3_BB_6x75 mirror_cmd = {
+              {{0x75, 0x03, 0x0000}, bb_main_warp_flag_num, 0},
+              static_cast<uint16_t>(difficulty),
+              0x0000};
+          for (auto& lc : l->clients) {
+            if (lc && (lc->version() == Version::BB_V4)) {
+              lc->channel->send(0x60, 0x00, &mirror_cmd, sizeof(mirror_cmd));
+            }
+          }
         }
       }
     } else {
