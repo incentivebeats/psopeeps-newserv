@@ -958,19 +958,6 @@ void ServerState::load_config_early() {
   this->enable_brutal_peeps_mode = this->config_json->get_bool("EnableBrutalPeepsMode", false);
   this->enable_hardcore_mode = this->config_json->get_bool("EnableHardcoreMode", false);
   this->enable_test_mode = this->config_json->get_bool("EnableTestMode", false);
-  this->brutal_peeps_max_tier = std::min<int64_t>(10, std::max<int64_t>(0, this->config_json->get_int("BrutalPeepsMaxTier", 10)));
-  this->brutal_peeps_unlocked_tier_v2 = std::min<int64_t>(
-      this->brutal_peeps_max_tier,
-      std::max<int64_t>(-1, this->config_json->get_int("BrutalPeepsUnlockedTierV2", -1)));
-  this->brutal_peeps_unlocked_tier_v3 = std::min<int64_t>(
-      this->brutal_peeps_max_tier,
-      std::max<int64_t>(-1, this->config_json->get_int("BrutalPeepsUnlockedTierV3", -1)));
-  this->brutal_peeps_unlocked_tier_v4 = std::min<int64_t>(
-      this->brutal_peeps_max_tier,
-      std::max<int64_t>(-1, this->config_json->get_int("BrutalPeepsUnlockedTierV4", -1)));
-  this->brutal_peeps_enemy_hp_scale_tier = std::min<int64_t>(
-      this->brutal_peeps_max_tier,
-      std::max<int64_t>(-1, this->config_json->get_int("BrutalPeepsEnemyHPScaleTier", -1)));
   this->rare_notifs_enabled_for_client_drops = this->config_json->get_bool("RareNotificationsEnabledForClientDrops", false);
   this->default_rare_notifs_enabled_v1_v2 = this->config_json->get_bool("RareNotificationsEnabledByDefault", false);
   this->default_rare_notifs_enabled_v3_v4 = this->default_rare_notifs_enabled_v1_v2;
