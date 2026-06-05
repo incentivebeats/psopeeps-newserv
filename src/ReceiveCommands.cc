@@ -26,6 +26,7 @@
 #include "SendCommands.hh"
 #include "StaticGameData.hh"
 #include "Text.hh"
+#include "BrutalPeeps.hh"
 
 const char* BATTLE_TABLE_DISCONNECT_HOOK_NAME = "battle_table_state";
 const char* QUEST_BARRIER_DISCONNECT_HOOK_NAME = "quest_barrier";
@@ -306,19 +307,22 @@ static void send_main_menu(std::shared_ptr<Client> c) {
             num_players, num_games, num_compatible_games);
       },
       go_to_lobby_menu_item_flags);
+  uint32_t character_level = c->character_file()
+      ? (c->character_file()->disp.stats.level + 1)
+      : 0;
+  int8_t max_brutal_peeps_menu_tier = s->enable_brutal_peeps_mode
+      ? max_brutal_peeps_tier_for_level(character_level)
+      : -1;
+
   bool show_brutal_peeps_menu_items =
       bb_destination_transport_menu &&
       s->enable_brutal_peeps_mode &&
-      (s->brutal_peeps_unlocked_tier_v4 >= 0);
+      (max_brutal_peeps_menu_tier >= 1);
 
   if (show_brutal_peeps_menu_items) {
-    int64_t max_brutal_peeps_menu_tier = std::min<int64_t>(
-        s->brutal_peeps_max_tier,
-        s->brutal_peeps_unlocked_tier_v4);
-
-    for (int64_t tier = 0; tier <= max_brutal_peeps_menu_tier; tier++) {
+    for (int64_t tier = 1; tier <= max_brutal_peeps_menu_tier; tier++) {
       main_menu->items.emplace_back(
-          MainMenuItemID::BRUTAL_PEEPS_PLUS0 + static_cast<uint32_t>(tier),
+          MainMenuItemID::BRUTAL_PEEPS_PLUS1 + static_cast<uint32_t>(tier - 1),
           std::format("Brutal Peeps +{}", tier),
           std::format("Enter Brutal Peeps\n+{}", tier),
           MenuItem::Flag::BB_ONLY);
@@ -2735,21 +2739,27 @@ void set_lobby_quest(std::shared_ptr<Lobby> l, std::shared_ptr<const Quest> q, b
 static asio::awaitable<void> on_10_main_menu(std::shared_ptr<Client> c, uint32_t item_id) {
   auto s = c->require_server_state();
 
-  if ((item_id >= MainMenuItemID::BRUTAL_PEEPS_PLUS0) &&
-      (item_id <= (MainMenuItemID::BRUTAL_PEEPS_PLUS0 + 10))) {
-    int64_t tier = item_id - MainMenuItemID::BRUTAL_PEEPS_PLUS0;
+  if ((item_id >= MainMenuItemID::BRUTAL_PEEPS_PLUS1) &&
+      (item_id <= (MainMenuItemID::BRUTAL_PEEPS_PLUS1 + 10))) {
+    int64_t tier = (item_id - MainMenuItemID::BRUTAL_PEEPS_PLUS1) + 1;
+    const auto* brutal_peeps_def = brutal_peeps_tier_definition(tier);
+    uint32_t character_level = c->character_file()
+        ? (c->character_file()->disp.stats.level + 1)
+        : 0;
 
     if (!s->enable_brutal_peeps_mode ||
         !is_v4(c->version()) ||
-        (tier < 0) ||
-        (tier > s->brutal_peeps_max_tier) ||
-        (tier > s->brutal_peeps_unlocked_tier_v4)) {
-      send_message_box(c, std::format("$C6Brutal Peeps +{} is not available.", tier));
+        !brutal_peeps_def ||
+        (character_level < brutal_peeps_def->required_level)) {
+      send_message_box(c, std::format(
+          "$C6Brutal Peeps +{} is not available.\n\n$C7Required level: {}",
+          tier,
+          brutal_peeps_def ? brutal_peeps_def->required_level : 100));
       co_return;
     }
 
     c->selected_brutal_peeps_tier = tier;
-    c->log.info_f("Brutal Peeps +{} selected from BB menu", tier);
+    c->log.info_f("Brutal Peeps +{} selected from BB menu at level {}", tier, character_level);
 
     co_await send_auto_patches_if_needed(c);
     co_await enable_save_if_needed(c);
@@ -2769,21 +2779,6 @@ static asio::awaitable<void> on_10_main_menu(std::shared_ptr<Client> c, uint32_t
       if (is_pre_v1(c->version())) {
         co_await send_get_player_info(c);
       }
-      if (!c->lobby.lock()) {
-        s->add_client_to_available_lobby(c, false);
-      }
-      break;
-    }
-
-    case MainMenuItemID::BRUTAL_PEEPS_PLUS0: {
-      if (!s->enable_brutal_peeps_mode || (c->version() != Version::DC_V2) || (s->brutal_peeps_unlocked_tier_v2 < 0)) {
-        send_message_box(c, "$C6Brutal Peeps +0 is not available.");
-        break;
-      }
-      c->selected_brutal_peeps_tier = 0;
-      co_await send_auto_patches_if_needed(c);
-      co_await enable_save_if_needed(c);
-      send_lobby_list(c);
       if (!c->lobby.lock()) {
         s->add_client_to_available_lobby(c, false);
       }
@@ -5081,13 +5076,15 @@ std::shared_ptr<Lobby> create_game_generic(
   if (creator_c->check_flag(Client::Flag::IS_CLIENT_CUSTOMIZATION)) {
     game->set_flag(Lobby::Flag::IS_CLIENT_CUSTOMIZATION);
   }
-  game->log.info_f("PSO Peeps Brutal Peeps debug: created game name=[{}] version={} difficulty={} enable_brutal_peeps_mode={} unlocked_v4={} max_tier={}",
+  uint32_t creator_character_level = creator_c->character_file()
+      ? (creator_c->character_file()->disp.stats.level + 1)
+      : 0;
+  game->log.info_f("PSO Peeps Brutal Peeps debug: created game name=[{}] version={} difficulty={} enable_brutal_peeps_mode={} creator_level={}",
       name,
       static_cast<size_t>(creator_c->version()),
       name_for_difficulty(difficulty),
       s->enable_brutal_peeps_mode,
-      s->brutal_peeps_unlocked_tier_v4,
-      s->brutal_peeps_max_tier);
+      creator_character_level);
   int8_t requested_brutal_peeps_tier = -1;
   bool requested_brutal_peeps = false;
   std::string requested_brutal_peeps_source = "none";
@@ -5098,7 +5095,7 @@ std::shared_ptr<Lobby> create_game_generic(
     requested_brutal_peeps_source = "BB menu selection";
 
   } else {
-    size_t bb_prefix_offset = name.find("[BB+");
+    size_t bb_prefix_offset = name.find("[BP+");
     if (bb_prefix_offset != std::string::npos) {
       requested_brutal_peeps = true;
       requested_brutal_peeps_source = "room prefix";
@@ -5115,7 +5112,7 @@ std::shared_ptr<Lobby> create_game_generic(
         }
         if (tier_str_valid) {
           int64_t parsed_tier = std::stoll(tier_str);
-          if ((parsed_tier >= 0) && (parsed_tier <= s->brutal_peeps_max_tier)) {
+          if (brutal_peeps_tier_definition(parsed_tier)) {
             requested_brutal_peeps_tier = parsed_tier;
           }
         }
@@ -5124,23 +5121,27 @@ std::shared_ptr<Lobby> create_game_generic(
   }
 
   if (requested_brutal_peeps_tier >= 0) {
+    const auto* brutal_peeps_def = brutal_peeps_tier_definition(requested_brutal_peeps_tier);
     if (s->enable_brutal_peeps_mode &&
         is_v4(creator_c->version()) &&
         (difficulty == Difficulty::ULTIMATE) &&
-        (requested_brutal_peeps_tier <= s->brutal_peeps_unlocked_tier_v4)) {
+        brutal_peeps_def &&
+        (creator_character_level >= brutal_peeps_def->required_level)) {
       game->brutal_peeps_tier = requested_brutal_peeps_tier;
-      game->set_flag(Lobby::Flag::BRUTAL_PEEPS_PLUS0);
-      game->log.info_f("Brutal Peeps +{} enabled for BB Ultimate game via {}",
+      game->set_flag(Lobby::Flag::BRUTAL_PEEPS_MODE);
+      creator_c->selected_brutal_peeps_tier = requested_brutal_peeps_tier;
+      game->log.info_f("Brutal Peeps +{} enabled for BB Ultimate game via {} at creator level {}",
           static_cast<int>(game->brutal_peeps_tier),
-          requested_brutal_peeps_source);
+          requested_brutal_peeps_source,
+          creator_character_level);
     } else {
-      game->log.info_f("Brutal Peeps +{} room prefix ignored; enable={}, version={}, difficulty={}, unlocked_v4={}, max_tier={}",
+      game->log.info_f("Brutal Peeps +{} room/menu request ignored; enable={}, version={}, difficulty={}, creator_level={}, required_level={}",
           static_cast<int>(requested_brutal_peeps_tier),
           s->enable_brutal_peeps_mode,
           static_cast<size_t>(creator_c->version()),
           name_for_difficulty(difficulty),
-          s->brutal_peeps_unlocked_tier_v4,
-          s->brutal_peeps_max_tier);
+          creator_character_level,
+          brutal_peeps_def ? brutal_peeps_def->required_level : 0);
     }
   } else if (requested_brutal_peeps) {
     game->log.info_f("Brutal Peeps room prefix ignored; invalid prefix in room name: {}", name);
