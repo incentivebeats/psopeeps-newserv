@@ -21,6 +21,7 @@
 #include "ReceiveSubcommands.hh"
 #include "StaticGameData.hh"
 #include "Text.hh"
+#include "BrutalPeeps.hh"
 
 extern const char* QUEST_BARRIER_DISCONNECT_HOOK_NAME;
 
@@ -711,20 +712,19 @@ static bool is_battle_param_stream_file_for_brutal_peeps(const std::string& file
 static std::string bb_stream_file_data_for_client(std::shared_ptr<Client> c) {
   auto s = c->require_server_state();
 
-  int64_t effective_brutal_peeps_hp_scale_tier = (c->selected_brutal_peeps_tier >= 0)
-      ? c->selected_brutal_peeps_tier
-      : s->brutal_peeps_enemy_hp_scale_tier;
+  int64_t effective_brutal_peeps_hp_scale_tier = c->selected_brutal_peeps_tier;
+  auto l = c->lobby.lock();
+  if ((effective_brutal_peeps_hp_scale_tier < 0) && l && (l->brutal_peeps_tier >= 0)) {
+    effective_brutal_peeps_hp_scale_tier = l->brutal_peeps_tier;
+  }
 
-  if (effective_brutal_peeps_hp_scale_tier < 0) {
+  const auto* brutal_peeps_def = brutal_peeps_tier_definition(effective_brutal_peeps_hp_scale_tier);
+  if (!brutal_peeps_def) {
     return s->bb_stream_file->data;
   }
 
-  effective_brutal_peeps_hp_scale_tier = std::min<int64_t>(
-      s->brutal_peeps_max_tier,
-      effective_brutal_peeps_hp_scale_tier);
-
   std::string scaled_data = s->bb_stream_file->data;
-  double mult = 1.0 + (static_cast<double>(effective_brutal_peeps_hp_scale_tier) * 0.25);
+  double mult = brutal_peeps_def->enemy_hp_multiplier;
   size_t ultimate_index = static_cast<size_t>(Difficulty::ULTIMATE);
 
   auto scale_u16 = [mult](uint32_t v) -> uint16_t {

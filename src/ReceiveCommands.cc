@@ -5190,13 +5190,15 @@ std::shared_ptr<Lobby> create_game_generic(
   }
   game->base_exp_multiplier = s->bb_global_exp_multiplier;
   if (game->brutal_peeps_tier >= 0) {
-    float brutal_peeps_exp_multiplier = 1.0f + (static_cast<float>(game->brutal_peeps_tier) * 0.25f);
-    game->base_exp_multiplier *= brutal_peeps_exp_multiplier;
-    game->log.info_f("Brutal Peeps +{} EXP multiplier set to {:g}x total (BBGlobalEXPMultiplier={:g}, brutal_peeps={:g})",
-        static_cast<int>(game->brutal_peeps_tier),
-        game->base_exp_multiplier,
-        s->bb_global_exp_multiplier,
-        brutal_peeps_exp_multiplier);
+    const auto* brutal_peeps_def = brutal_peeps_tier_definition(game->brutal_peeps_tier);
+    if (brutal_peeps_def) {
+      game->base_exp_multiplier *= brutal_peeps_def->exp_multiplier;
+      game->log.info_f("Brutal Peeps +{} EXP multiplier set to {:g}x total (BBGlobalEXPMultiplier={:g}, brutal_peeps={:g})",
+          static_cast<int>(game->brutal_peeps_tier),
+          game->base_exp_multiplier,
+          s->bb_global_exp_multiplier,
+          brutal_peeps_def->exp_multiplier);
+    }
   }
   game->exp_share_multiplier = s->exp_share_multiplier;
 
