@@ -152,7 +152,7 @@ public:
   uint8_t override_lobby_event = 0xFF; // FF = no override
   uint8_t override_lobby_number = 0x80; // 80 = no override
   int64_t override_random_seed = -1;
-  int8_t selected_blueballz_tier = -1; // -1 = normal lobby/game; 0..10 = requested Blueballz tier
+  int8_t selected_brutal_peeps_tier = -1; // -1 = normal lobby/game; 0..10 = requested Brutal Peeps tier
   std::unique_ptr<Variations> override_variations;
   VectorXYZF pos;
   uint32_t floor = 0x0F;
