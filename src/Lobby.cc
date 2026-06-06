@@ -9,6 +9,7 @@
 #include "SendCommands.hh"
 #include "ServerState.hh"
 #include "Text.hh"
+#include "BrutalPeeps.hh"
 
 bool Lobby::FloorItem::visible_to_client(uint8_t client_id) const {
   return this->flags & (1 << client_id);
@@ -228,10 +229,14 @@ void Lobby::create_item_creator(Version logic_version) {
       effective_section_id,
       rand_crypt,
       this->quest ? this->quest->meta.battle_rules : nullptr);
-  if (this->blueballz_tier >= 0) {
-    double rare_mult = 1.25 + (static_cast<double>(this->blueballz_tier) * 0.25);
-    this->item_creator->set_rare_drop_rate_multiplier(rare_mult);
-    this->log.info_f("Blueballz +{} rare drop rate multiplier set to {:g}x", this->blueballz_tier, rare_mult);
+  if (this->brutal_peeps_tier >= 0) {
+    const auto* brutal_peeps_def = brutal_peeps_tier_definition(this->brutal_peeps_tier);
+    if (brutal_peeps_def) {
+      this->item_creator->set_rare_drop_rate_multiplier(brutal_peeps_def->rare_drop_multiplier);
+      this->log.info_f("Brutal Peeps +{} rare drop rate multiplier set to {:g}x",
+          this->brutal_peeps_tier,
+          brutal_peeps_def->rare_drop_multiplier);
+    }
   }
   if (s->use_legacy_item_random_behavior) {
     this->item_creator->set_legacy_replay();
