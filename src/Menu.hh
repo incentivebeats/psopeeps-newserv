@@ -47,7 +47,7 @@ constexpr uint32_t BB_TEST_SHIP = 0x11BBBB11;
 constexpr uint32_t BB_VANILLA_SHIP = 0x11CCCC11;
 constexpr uint32_t BB_HARDCORE_SHIP = 0x11F00D11;
 constexpr uint32_t BB_DEV_SHIP = 0x11EEEE11;
-constexpr uint32_t BRUTAL_PEEPS_PLUS0 = 0x11DDDD11;
+constexpr uint32_t BRUTAL_PEEPS_PLUS1 = 0x11DDDD11;
 } // namespace MainMenuItemID
 
 namespace ClearLicenseConfirmationMenuItemID {
