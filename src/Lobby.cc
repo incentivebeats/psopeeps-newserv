@@ -10,6 +10,7 @@
 #include "ServerState.hh"
 #include "Text.hh"
 #include <fstream>
+#include "BrutalPeeps.hh"
 
 
 
@@ -246,9 +247,13 @@ void Lobby::create_item_creator(Version logic_version) {
       rand_crypt,
       this->quest ? this->quest->meta.battle_rules : nullptr);
   if (this->brutal_peeps_tier >= 0) {
-    double rare_mult = 1.25 + (static_cast<double>(this->brutal_peeps_tier) * 0.25);
-    this->item_creator->set_rare_drop_rate_multiplier(rare_mult);
-    this->log.info_f("Brutal Peeps +{} rare drop rate multiplier set to {:g}x", this->brutal_peeps_tier, rare_mult);
+    const auto* brutal_peeps_def = brutal_peeps_tier_definition(this->brutal_peeps_tier);
+    if (brutal_peeps_def) {
+      this->item_creator->set_rare_drop_rate_multiplier(brutal_peeps_def->rare_drop_multiplier);
+      this->log.info_f("Brutal Peeps +{} rare drop rate multiplier set to {:g}x",
+          this->brutal_peeps_tier,
+          brutal_peeps_def->rare_drop_multiplier);
+    }
   }
   if (s->use_legacy_item_random_behavior) {
     this->item_creator->set_legacy_replay();
