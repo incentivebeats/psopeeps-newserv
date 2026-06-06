@@ -25,6 +25,7 @@ static constexpr std::array<BrutalPeepsTierDefinition, 11> BRUTAL_PEEPS_TIERS = 
     {11, 200, 1.00f, 4.00f, 1.050},
 }};
 
+
 static inline const BrutalPeepsTierDefinition* brutal_peeps_tier_definition(int64_t tier) {
   for (const auto& def : BRUTAL_PEEPS_TIERS) {
     if (def.tier == tier) {
