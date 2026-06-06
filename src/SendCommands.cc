@@ -699,7 +699,7 @@ void send_guild_card_chunk_bb(std::shared_ptr<Client> c, size_t chunk_index) {
 
 
 
-static bool is_battle_param_stream_file_for_blueballz(const std::string& filename) {
+static bool is_battle_param_stream_file_for_brutal_peeps(const std::string& filename) {
   return (filename == "BattleParamEntry.dat") ||
       (filename == "BattleParamEntry_on.dat") ||
       (filename == "BattleParamEntry_lab.dat") ||
@@ -711,20 +711,20 @@ static bool is_battle_param_stream_file_for_blueballz(const std::string& filenam
 static std::string bb_stream_file_data_for_client(std::shared_ptr<Client> c) {
   auto s = c->require_server_state();
 
-  int64_t effective_blueballz_hp_scale_tier = (c->selected_blueballz_tier >= 0)
-      ? c->selected_blueballz_tier
-      : s->blueballz_enemy_hp_scale_tier;
+  int64_t effective_brutal_peeps_hp_scale_tier = (c->selected_brutal_peeps_tier >= 0)
+      ? c->selected_brutal_peeps_tier
+      : s->brutal_peeps_enemy_hp_scale_tier;
 
-  if (effective_blueballz_hp_scale_tier < 0) {
+  if (effective_brutal_peeps_hp_scale_tier < 0) {
     return s->bb_stream_file->data;
   }
 
-  effective_blueballz_hp_scale_tier = std::min<int64_t>(
-      s->blueballz_max_tier,
-      effective_blueballz_hp_scale_tier);
+  effective_brutal_peeps_hp_scale_tier = std::min<int64_t>(
+      s->brutal_peeps_max_tier,
+      effective_brutal_peeps_hp_scale_tier);
 
   std::string scaled_data = s->bb_stream_file->data;
-  double mult = 1.0 + (static_cast<double>(effective_blueballz_hp_scale_tier) * 0.25);
+  double mult = 1.0 + (static_cast<double>(effective_brutal_peeps_hp_scale_tier) * 0.25);
   size_t ultimate_index = static_cast<size_t>(Difficulty::ULTIMATE);
 
   auto scale_u16 = [mult](uint32_t v) -> uint16_t {
@@ -742,19 +742,19 @@ static std::string bb_stream_file_data_for_client(std::shared_ptr<Client> c) {
   };
 
   for (const auto& sf_entry : s->bb_stream_file->entries) {
-    if (!is_battle_param_stream_file_for_blueballz(sf_entry.filename)) {
+    if (!is_battle_param_stream_file_for_brutal_peeps(sf_entry.filename)) {
       continue;
     }
 
     if ((sf_entry.offset > scaled_data.size()) ||
         (sf_entry.size > (scaled_data.size() - sf_entry.offset))) {
-      c->log.warning_f("Blueballz enemy HP scaling skipped for {}; invalid stream-file range",
+      c->log.warning_f("Brutal Peeps enemy HP scaling skipped for {}; invalid stream-file range",
           sf_entry.filename);
       continue;
     }
 
     if (sf_entry.size < sizeof(BattleParamsIndex::Table)) {
-      c->log.warning_f("Blueballz enemy HP scaling skipped for {}; file is too small",
+      c->log.warning_f("Brutal Peeps enemy HP scaling skipped for {}; file is too small",
           sf_entry.filename);
       continue;
     }
@@ -767,8 +767,8 @@ static std::string bb_stream_file_data_for_client(std::shared_ptr<Client> c) {
       stats.char_stats.hp = scale_u16(stats.char_stats.hp);
     }
 
-    c->log.info_f("Blueballz enemy HP scaling: serving {} with tier {} ({:g}x Ultimate HP)",
-        sf_entry.filename, effective_blueballz_hp_scale_tier, mult);
+    c->log.info_f("Brutal Peeps enemy HP scaling: serving {} with tier {} ({:g}x Ultimate HP)",
+        sf_entry.filename, effective_brutal_peeps_hp_scale_tier, mult);
   }
 
   return scaled_data;
@@ -789,7 +789,7 @@ void send_stream_file_index_bb(std::shared_ptr<Client> c) {
     bool size_overflows = !offset_past_end && (sf_entry.size > (contents.size() - sf_entry.offset));
 
     c->log.info_f(
-        "PSO Peeps BBZ stream diag: entry[{}] filename={} offset={:08X} size={:08X} contents_size={:08X}{}{}",
+        "PSO Peeps Brutal Peeps stream diag: entry[{}] filename={} offset={:08X} size={:08X} contents_size={:08X}{}{}",
         idx, sf_entry.filename, sf_entry.offset, sf_entry.size, contents.size(),
         offset_past_end ? " OFFSET_PAST_END" : "",
         size_overflows ? " SIZE_OVERFLOWS_END" : "");
