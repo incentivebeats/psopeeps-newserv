@@ -43,19 +43,6 @@ start:
 
 
 
-  .versions 2OJW
-
-  .data     0x004DFC9A
-  .data     2
-  nop
-  nop
-
-  .data     0x004E03F4
-  .data     2
-  nop
-  nop
-
-
 
   .all_versions
 
