@@ -2762,6 +2762,7 @@ static asio::awaitable<void> on_10_main_menu(std::shared_ptr<Client> c, uint32_t
     c->log.info_f("Brutal Peeps +{} selected from BB menu at level {}", tier, character_level);
 
     co_await send_auto_patches_if_needed(c);
+    co_await send_brutal_peeps_hp_patch_bb(c, tier);
     co_await enable_save_if_needed(c);
     send_lobby_list(c);
     if (!c->lobby.lock()) {
