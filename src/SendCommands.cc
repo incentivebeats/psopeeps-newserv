@@ -777,7 +777,8 @@ static std::string bb_stream_file_data_for_client(std::shared_ptr<Client> c) {
 
 static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> send_brutal_peeps_hp_patch_bb_now(
     std::shared_ptr<Client> c,
-    int64_t tier) {
+    int64_t tier,
+    bool force_all_tables) {
   std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> promises;
 
   if (c->version() != Version::BB_V4) {
@@ -831,25 +832,28 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
     }();
 
     std::vector<std::string> bp_filenames;
-    auto l = c->lobby.lock();
-    if (l && l->is_game()) {
-      switch (l->episode) {
-        case Episode::EP1:
-          bp_filenames.emplace_back("BattleParamEntry_on.dat");
-          break;
-        case Episode::EP2:
-          bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
-          break;
-        case Episode::EP4:
-          bp_filenames.emplace_back("BattleParamEntry_ep4_on.dat");
-          break;
-        default:
-          break;
+
+    if (!force_all_tables) {
+      auto l = c->lobby.lock();
+      if (l && l->is_game()) {
+        switch (l->episode) {
+          case Episode::EP1:
+            bp_filenames.emplace_back("BattleParamEntry_on.dat");
+            break;
+          case Episode::EP2:
+            bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
+            break;
+          case Episode::EP4:
+            bp_filenames.emplace_back("BattleParamEntry_ep4_on.dat");
+            break;
+          default:
+            break;
+        }
       }
     }
 
-    // Before the room exists, we don't know which episode the player will pick.
-    // Patch all online BB BattleParam tables so EP2/EP4 HP is already scaled before enemies initialize.
+    // Before the room exists, or when explicitly requested from the BB ship-menu path,
+    // patch all online BB BattleParam tables before enemies initialize.
     if (bp_filenames.empty()) {
       bp_filenames.emplace_back("BattleParamEntry_on.dat");
       bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
@@ -1251,7 +1255,7 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
 }
 
 
-asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, int64_t tier) {
+asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, int64_t tier, bool force_all_tables) {
   try {
     co_await prepare_client_for_patches(c);
 
@@ -1261,7 +1265,7 @@ asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, i
     for (size_t attempt = 1; attempt <= max_attempts; attempt++) {
       auto promises = is_pc_bp_patch
           ? send_brutal_peeps_hp_patch_pc_now(c, tier)
-          : send_brutal_peeps_hp_patch_bb_now(c, tier);
+          : send_brutal_peeps_hp_patch_bb_now(c, tier, force_all_tables);
 
       bool any_zero_return = false;
       bool any_success = false;

@@ -2771,7 +2771,9 @@ static asio::awaitable<void> on_10_main_menu(std::shared_ptr<Client> c, uint32_t
 
     co_await send_auto_patches_if_needed(c);
     if (c->version() == Version::BB_V4) {
-      co_await send_brutal_peeps_hp_patch_bb(c, tier);
+      // BB must patch all online BattleParam files before room creation/area load.
+      // PC V2 uses the delayed area-load retry path instead.
+      co_await send_brutal_peeps_hp_patch_bb(c, tier, true);
     }
     co_await enable_save_if_needed(c);
     send_lobby_list(c);
@@ -2785,7 +2787,11 @@ static asio::awaitable<void> on_10_main_menu(std::shared_ptr<Client> c, uint32_t
     case MainMenuItemID::GO_TO_LOBBY: {
       c->selected_brutal_peeps_tier = -1;
       co_await send_auto_patches_if_needed(c);
-      co_await send_brutal_peeps_hp_patch_bb(c, -1);
+      if (c->version() == Version::BB_V4) {
+        co_await send_brutal_peeps_hp_patch_bb(c, -1, true);
+      } else if (c->version() == Version::PC_V2) {
+        co_await send_brutal_peeps_hp_patch_bb(c, -1);
+      }
       co_await enable_save_if_needed(c);
       send_lobby_list(c);
       if (is_pre_v1(c->version())) {
