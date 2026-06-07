@@ -2195,7 +2195,11 @@ void send_game_menu_t(std::shared_ptr<Client> c, bool is_spectator_team_list, bo
       }
     }
 
-    e.name.encode(l->name, c->language());
+    if ((c->version() == Version::BB_V4) && (l->brutal_peeps_tier >= 1)) {
+      e.name.encode(std::format("B+{} {}", static_cast<int>(l->brutal_peeps_tier), l->name), c->language());
+    } else {
+      e.name.encode(l->name, c->language());
+    }
   }
 
   send_command_vt(c, is_spectator_team_list ? 0xE6 : 0x08, entries.size() - 1, entries);
