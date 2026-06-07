@@ -5546,6 +5546,27 @@ static asio::awaitable<void> on_8A(std::shared_ptr<Client> c, Channel::Message& 
   co_return;
 }
 
+
+static asio::awaitable<void> send_brutal_peeps_pc_patch_until_area_load(std::shared_ptr<Client> c) {
+  for (size_t attempt = 1; attempt <= 120; attempt++) {
+    asio::steady_timer timer(co_await asio::this_coro::executor);
+    timer.expires_after(std::chrono::milliseconds(500));
+    co_await timer.async_wait(asio::use_awaitable);
+
+    if (!c->channel->connected() || (c->version() != Version::PC_V2)) {
+      co_return;
+    }
+
+    auto l = c->lobby.lock();
+    if (!l || !l->is_game()) {
+      co_return;
+    }
+
+    int64_t brutal_peeps_hp_patch_tier = (l->brutal_peeps_tier >= 1) ? l->brutal_peeps_tier : -1;
+    co_await send_brutal_peeps_hp_patch_bb(c, brutal_peeps_hp_patch_tier);
+  }
+}
+
 static asio::awaitable<void> on_6F(std::shared_ptr<Client> c, Channel::Message& msg) {
   check_size_v(msg.data.size(), 0);
 
@@ -5599,6 +5620,9 @@ static asio::awaitable<void> on_6F(std::shared_ptr<Client> c, Channel::Message& 
   if (loading_flag_cleared && (c->version() == Version::BB_V4)) {
     int64_t brutal_peeps_hp_patch_tier = (l->brutal_peeps_tier >= 1) ? l->brutal_peeps_tier : -1;
     co_await send_brutal_peeps_hp_patch_bb(c, brutal_peeps_hp_patch_tier);
+  } else if (loading_flag_cleared && (c->version() == Version::PC_V2)) {
+    auto s = c->require_server_state();
+    asio::co_spawn(*s->io_context, send_brutal_peeps_pc_patch_until_area_load(c), asio::detached);
   }
 
   // DC NTE creates players in the invisible state by default; if the joiner is not DC NTE, it won't send 6x23 to make
