@@ -5133,14 +5133,14 @@ std::shared_ptr<Lobby> create_game_generic(
   if (requested_brutal_peeps_tier >= 0) {
     const auto* brutal_peeps_def = brutal_peeps_tier_definition(requested_brutal_peeps_tier);
     if (s->enable_brutal_peeps_mode &&
-        is_v4(creator_c->version()) &&
+        ((creator_c->version() == Version::BB_V4) || (creator_c->version() == Version::PC_V2)) &&
         (difficulty == Difficulty::ULTIMATE) &&
         brutal_peeps_def &&
         (creator_character_level >= brutal_peeps_def->required_level)) {
       game->brutal_peeps_tier = requested_brutal_peeps_tier;
       game->set_flag(Lobby::Flag::BRUTAL_PEEPS_MODE);
       creator_c->selected_brutal_peeps_tier = requested_brutal_peeps_tier;
-      game->log.info_f("Brutal Peeps +{} enabled for BB Ultimate game via {} at creator level {}",
+      game->log.info_f("Brutal Peeps +{} enabled for BB/PC Ultimate game via {} at creator level {}",
           static_cast<int>(game->brutal_peeps_tier),
           requested_brutal_peeps_source,
           creator_character_level);
