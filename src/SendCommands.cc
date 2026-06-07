@@ -775,20 +775,22 @@ static std::string bb_stream_file_data_for_client(std::shared_ptr<Client> c) {
 }
 
 
-static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_hp_patch_bb_now(
+static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> send_brutal_peeps_hp_patch_bb_now(
     std::shared_ptr<Client> c,
     int64_t tier) {
+  std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> promises;
+
   if (c->version() != Version::BB_V4) {
-    return nullptr;
+    return promises;
   }
   if (!c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL) ||
       !c->check_flag(Client::Flag::SEND_FUNCTION_CALL_ACTUALLY_RUNS_CODE)) {
     c->log.warning_f("Skipping Brutal Peeps HP client patch because client does not support executable send_function_call");
-    return nullptr;
+    return promises;
   }
   if (!c->channel->connected()) {
     c->log.warning_f("Skipping Brutal Peeps HP client patch because client is disconnected");
-    return nullptr;
+    return promises;
   }
 
   try {
@@ -796,48 +798,36 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
     const auto* brutal_peeps_def = brutal_peeps_tier_definition(tier);
     if ((tier >= 0) && !brutal_peeps_def) {
       c->log.warning_f("Skipping Brutal Peeps HP client patch for invalid tier {}", tier);
-      return nullptr;
+      return promises;
     }
 
     const double mult = brutal_peeps_def ? brutal_peeps_def->enemy_hp_multiplier : 1.0;
 
-    const std::string bp_filename = [&]() -> std::string {
-      auto l = c->lobby.lock();
-      if (l && l->is_game()) {
-        switch (l->episode) {
-          case Episode::EP1:
-            return "BattleParamEntry_on.dat";
-          case Episode::EP2:
-            return "BattleParamEntry_lab_on.dat";
-          case Episode::EP4:
-            return "BattleParamEntry_ep4_on.dat";
-          default:
-            break;
-        }
-      }
-      return "BattleParamEntry_on.dat";
-    }();
-
-    const BBStreamFile::Entry* bp_entry = nullptr;
-
-    for (const auto& sf_entry : s->bb_stream_file->entries) {
-      if (sf_entry.filename == bp_filename) {
-        bp_entry = &sf_entry;
-        break;
+    std::vector<std::string> bp_filenames;
+    auto l = c->lobby.lock();
+    if (l && l->is_game()) {
+      switch (l->episode) {
+        case Episode::EP1:
+          bp_filenames.emplace_back("BattleParamEntry_on.dat");
+          break;
+        case Episode::EP2:
+          bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
+          break;
+        case Episode::EP4:
+          bp_filenames.emplace_back("BattleParamEntry_ep4_on.dat");
+          break;
+        default:
+          break;
       }
     }
-    if (!bp_entry) {
-      c->log.warning_f("Skipping Brutal Peeps HP client patch: {} not found in BB stream file", bp_filename);
-      return nullptr;
-    }
-    if ((bp_entry->offset > s->bb_stream_file->data.size()) ||
-        (bp_entry->size > (s->bb_stream_file->data.size() - bp_entry->offset)) ||
-        (bp_entry->size < sizeof(BattleParamsIndex::Table))) {
-      c->log.warning_f("Skipping Brutal Peeps HP client patch: invalid {} range", bp_filename);
-      return nullptr;
-    }
 
-    const char* vanilla_data = s->bb_stream_file->data.data() + bp_entry->offset;
+    // Before the room exists, we don't know which episode the player will pick.
+    // Patch all online BB BattleParam tables so EP2/EP4 HP is already scaled before enemies initialize.
+    if (bp_filenames.empty()) {
+      bp_filenames.emplace_back("BattleParamEntry_on.dat");
+      bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
+      bp_filenames.emplace_back("BattleParamEntry_ep4_on.dat");
+    }
 
     constexpr uint32_t scan_start = 0x16760000;
     constexpr uint32_t scan_end = 0x16A90000;
@@ -848,15 +838,6 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
     constexpr uint32_t ultimate_hp_base_offset = 0x00002886;
     constexpr uint32_t stats_row_size = 0x24;
     constexpr uint32_t num_bp_rows = 0x60;
-
-    if (bp_entry->size < signature_size) {
-      c->log.warning_f("Skipping Brutal Peeps HP client patch: {} too small for signature", bp_filename);
-      return nullptr;
-    }
-    if (bp_entry->size < (ultimate_hp_base_offset + ((num_bp_rows - 1) * stats_row_size) + 2)) {
-      c->log.warning_f("Skipping Brutal Peeps HP client patch: {} too small for Ultimate HP table", bp_filename);
-      return nullptr;
-    }
 
     auto append_u32l = +[](std::string& out, uint32_t v) {
       out.push_back(static_cast<char>(v & 0xFF));
@@ -879,57 +860,90 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
       return static_cast<uint16_t>(scaled);
     };
 
-    std::string suffix;
-    append_u32l(suffix, scan_start);
-    append_u32l(suffix, scan_end);
-    append_u32l(suffix, signature_size);
-    append_u32l(suffix, 0); // patched below after HP patch generation
-    suffix.append(vanilla_data, signature_size);
-
-    uint32_t patch_entry_count = 0;
-    for (uint32_t z = 0; z < num_bp_rows; z++) {
-      uint32_t hp_offset = ultimate_hp_base_offset + (z * stats_row_size);
-      uint16_t old_hp = static_cast<uint8_t>(vanilla_data[hp_offset]) |
-          (static_cast<uint16_t>(static_cast<uint8_t>(vanilla_data[hp_offset + 1])) << 8);
-      uint16_t new_hp = scale_u16(old_hp);
-
-      append_u32l(suffix, hp_offset);
-      suffix.push_back(static_cast<char>(new_hp & 0xFF));
-      patch_entry_count++;
-
-      append_u32l(suffix, hp_offset + 1);
-      suffix.push_back(static_cast<char>((new_hp >> 8) & 0xFF));
-      patch_entry_count++;
-    }
-
-    suffix[12] = static_cast<char>(patch_entry_count & 0xFF);
-    suffix[13] = static_cast<char>((patch_entry_count >> 8) & 0xFF);
-    suffix[14] = static_cast<char>((patch_entry_count >> 16) & 0xFF);
-    suffix[15] = static_cast<char>((patch_entry_count >> 24) & 0xFF);
-
     auto fn = s->client_functions->get("PsoPeepsBrutalPeepsHP", c->specific_version);
 
-    auto promise = std::make_shared<AsyncPromise<C_ExecuteCodeResult_B3>>();
-    c->function_call_response_queue.emplace_back(promise);
+    for (const auto& bp_filename : bp_filenames) {
+      const BBStreamFile::Entry* bp_entry = nullptr;
 
-    send_function_call(
-        c->channel,
-        c->enabled_flags,
-        fn,
-        {},
-        suffix.data(),
-        suffix.size());
+      for (const auto& sf_entry : s->bb_stream_file->entries) {
+        if (sf_entry.filename == bp_filename) {
+          bp_entry = &sf_entry;
+          break;
+        }
+      }
+      if (!bp_entry) {
+        c->log.warning_f("Skipping Brutal Peeps HP client patch: {} not found in BB stream file", bp_filename);
+        continue;
+      }
 
-    c->enabled_flags |= fn->client_flag;
+      if ((bp_entry->offset > s->bb_stream_file->data.size()) ||
+          (bp_entry->size > (s->bb_stream_file->data.size() - bp_entry->offset))) {
+        c->log.warning_f("Skipping Brutal Peeps HP client patch: invalid {} range", bp_filename);
+        continue;
+      }
 
-    c->log.info_f("Brutal Peeps HP client patch sent for {}: tier={} mult={:g} patch_entries={} scan={:08X}-{:08X}",
-        bp_filename, tier, mult, patch_entry_count, scan_start, scan_end);
+      const char* vanilla_data = s->bb_stream_file->data.data() + bp_entry->offset;
 
-    return promise;
+      if (bp_entry->size < signature_size) {
+        c->log.warning_f("Skipping Brutal Peeps HP client patch: {} too small for signature", bp_filename);
+        continue;
+      }
+      if (bp_entry->size < (ultimate_hp_base_offset + ((num_bp_rows - 1) * stats_row_size) + 2)) {
+        c->log.warning_f("Skipping Brutal Peeps HP client patch: {} too small for Ultimate HP table", bp_filename);
+        continue;
+      }
+
+      std::string suffix;
+      append_u32l(suffix, scan_start);
+      append_u32l(suffix, scan_end);
+      append_u32l(suffix, signature_size);
+      append_u32l(suffix, 0); // patched below after HP patch generation
+      suffix.append(vanilla_data, signature_size);
+
+      uint32_t patch_entry_count = 0;
+      for (uint32_t z = 0; z < num_bp_rows; z++) {
+        uint32_t hp_offset = ultimate_hp_base_offset + (z * stats_row_size);
+        uint16_t old_hp = static_cast<uint8_t>(vanilla_data[hp_offset]) |
+            (static_cast<uint16_t>(static_cast<uint8_t>(vanilla_data[hp_offset + 1])) << 8);
+        uint16_t new_hp = scale_u16(old_hp);
+
+        append_u32l(suffix, hp_offset);
+        suffix.push_back(static_cast<char>(new_hp & 0xFF));
+        patch_entry_count++;
+
+        append_u32l(suffix, hp_offset + 1);
+        suffix.push_back(static_cast<char>((new_hp >> 8) & 0xFF));
+        patch_entry_count++;
+      }
+
+      suffix[12] = static_cast<char>(patch_entry_count & 0xFF);
+      suffix[13] = static_cast<char>((patch_entry_count >> 8) & 0xFF);
+      suffix[14] = static_cast<char>((patch_entry_count >> 16) & 0xFF);
+      suffix[15] = static_cast<char>((patch_entry_count >> 24) & 0xFF);
+
+      auto promise = std::make_shared<AsyncPromise<C_ExecuteCodeResult_B3>>();
+      c->function_call_response_queue.emplace_back(promise);
+
+      send_function_call(
+          c->channel,
+          c->enabled_flags,
+          fn,
+          {},
+          suffix.data(),
+          suffix.size());
+
+      c->enabled_flags |= fn->client_flag;
+      promises.emplace_back(bp_filename, promise);
+
+      c->log.info_f("Brutal Peeps HP client patch sent for {}: tier={} mult={:g} patch_entries={} scan={:08X}-{:08X}",
+          bp_filename, tier, mult, patch_entry_count, scan_start, scan_end);
+    }
+
+    return promises;
 
   } catch (const std::exception& e) {
     c->log.warning_f("Failed to send Brutal Peeps HP client patch: {}", e.what());
-    return nullptr;
+    return promises;
   }
 }
 
@@ -937,20 +951,24 @@ asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, i
   try {
     co_await prepare_client_for_patches(c);
 
-    auto promise = send_brutal_peeps_hp_patch_bb_now(c, tier);
-    if (promise && c->channel->connected()) {
-      auto result = co_await promise->get();
-      c->log.info_f("Brutal Peeps HP client patch result: tier={} return_value={:08X} checksum={:08X}",
-          tier,
-          static_cast<uint32_t>(result.return_value),
-          static_cast<uint32_t>(result.checksum));
+    auto promises = send_brutal_peeps_hp_patch_bb_now(c, tier);
+    for (auto& it : promises) {
+      const auto& filename = it.first;
+      auto& promise = it.second;
+      if (promise && c->channel->connected()) {
+        auto result = co_await promise->get();
+        c->log.info_f("Brutal Peeps HP client patch result for {}: tier={} return_value={:08X} checksum={:08X}",
+            filename,
+            tier,
+            static_cast<uint32_t>(result.return_value),
+            static_cast<uint32_t>(result.checksum));
+      }
     }
 
   } catch (const std::exception& e) {
     c->log.warning_f("Failed to complete Brutal Peeps HP client patch: {}", e.what());
   }
 }
-
 
 
 void send_stream_file_index_bb(std::shared_ptr<Client> c) {
