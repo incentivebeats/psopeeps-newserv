@@ -1049,7 +1049,7 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
     constexpr const char* bp_filename = "BattleParamEntry_on.dat";
     std::string vanilla_data = phosg::load_file("system/patch-pc/Media/PSO/BattleParamEntry_on.dat");
 
-    constexpr uint32_t scan_start = 0x01A10000;
+    constexpr uint32_t scan_start = 0x01E00000;
     constexpr uint32_t scan_end = 0x02E21000;
     constexpr uint32_t signature_size = 64;
 

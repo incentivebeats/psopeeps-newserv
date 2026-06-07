@@ -314,8 +314,16 @@ static void send_main_menu(std::shared_ptr<Client> c) {
       ? max_brutal_peeps_tier_for_level(character_level)
       : -1;
 
+  bool supports_brutal_peeps_menu =
+      bb_destination_transport_menu ||
+      (c->version() == Version::PC_V2);
+
+  auto brutal_peeps_menu_item_flags = (c->version() == Version::BB_V4)
+      ? MenuItem::Flag::BB_ONLY
+      : static_cast<MenuItem::Flag>(0);
+
   bool show_brutal_peeps_menu_items =
-      bb_destination_transport_menu &&
+      supports_brutal_peeps_menu &&
       s->enable_brutal_peeps_mode &&
       (max_brutal_peeps_menu_tier >= 1);
 
@@ -325,7 +333,7 @@ static void send_main_menu(std::shared_ptr<Client> c) {
           MainMenuItemID::BRUTAL_PEEPS_PLUS1 + static_cast<uint32_t>(tier - 1),
           std::format("Brutal Peeps +{}", tier),
           std::format("Enter Brutal Peeps\n+{}", tier),
-          MenuItem::Flag::BB_ONLY);
+          brutal_peeps_menu_item_flags);
     }
   }
 
@@ -2748,7 +2756,7 @@ static asio::awaitable<void> on_10_main_menu(std::shared_ptr<Client> c, uint32_t
         : 0;
 
     if (!s->enable_brutal_peeps_mode ||
-        !is_v4(c->version()) ||
+        !((c->version() == Version::BB_V4) || (c->version() == Version::PC_V2)) ||
         !brutal_peeps_def ||
         (character_level < brutal_peeps_def->required_level)) {
       send_message_box(c, std::format(
@@ -2759,7 +2767,7 @@ static asio::awaitable<void> on_10_main_menu(std::shared_ptr<Client> c, uint32_t
     }
 
     c->selected_brutal_peeps_tier = tier;
-    c->log.info_f("Brutal Peeps +{} selected from BB menu at level {}", tier, character_level);
+    c->log.info_f("Brutal Peeps +{} selected from ship menu at level {}", tier, character_level);
 
     co_await send_auto_patches_if_needed(c);
     co_await send_brutal_peeps_hp_patch_bb(c, tier);
@@ -5586,7 +5594,8 @@ static asio::awaitable<void> on_6F(std::shared_ptr<Client> c, Channel::Message& 
     }
   }
 
-  if (loading_flag_cleared && (c->version() == Version::BB_V4)) {
+  if (loading_flag_cleared &&
+      ((c->version() == Version::BB_V4) || (c->version() == Version::PC_V2))) {
     int64_t brutal_peeps_hp_patch_tier = (l->brutal_peeps_tier >= 1) ? l->brutal_peeps_tier : -1;
     co_await send_brutal_peeps_hp_patch_bb(c, brutal_peeps_hp_patch_tier);
   }
