@@ -820,10 +820,32 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
     }
 
     const char* vanilla_data = s->bb_stream_file->data.data() + bp_entry->offset;
-    std::string target_data(vanilla_data, bp_entry->size);
 
-    auto* table = reinterpret_cast<BattleParamsIndex::Table*>(target_data.data());
-    size_t ultimate_index = static_cast<size_t>(Difficulty::ULTIMATE);
+    constexpr uint32_t scan_start = 0x16760000;
+    constexpr uint32_t scan_end = 0x16A90000;
+    constexpr uint32_t signature_size = 64;
+
+    // Raw BattleParamEntry*.dat layout:
+    // Ultimate stats HP starts at 0x2886 and each stats row is 0x24 bytes.
+    constexpr uint32_t ultimate_hp_base_offset = 0x00002886;
+    constexpr uint32_t stats_row_size = 0x24;
+    constexpr uint32_t num_bp_rows = 0x60;
+
+    if (bp_entry->size < signature_size) {
+      c->log.warning_f("Skipping Brutal Peeps HP client patch: BattleParamEntry_on.dat too small for signature");
+      return nullptr;
+    }
+    if (bp_entry->size < (ultimate_hp_base_offset + ((num_bp_rows - 1) * stats_row_size) + 2)) {
+      c->log.warning_f("Skipping Brutal Peeps HP client patch: BattleParamEntry_on.dat too small for Ultimate HP table");
+      return nullptr;
+    }
+
+    auto append_u32l = +[](std::string& out, uint32_t v) {
+      out.push_back(static_cast<char>(v & 0xFF));
+      out.push_back(static_cast<char>((v >> 8) & 0xFF));
+      out.push_back(static_cast<char>((v >> 16) & 0xFF));
+      out.push_back(static_cast<char>((v >> 24) & 0xFF));
+    };
 
     auto scale_u16 = [mult](uint32_t v) -> uint16_t {
       if (v == 0) {
@@ -839,44 +861,26 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
       return static_cast<uint16_t>(scaled);
     };
 
-    for (size_t z = 0; z < 0x60; z++) {
-      auto& stats = table->stats[ultimate_index][z];
-      stats.char_stats.hp = scale_u16(stats.char_stats.hp);
-    }
-
-    constexpr uint32_t scan_start = 0x16760000;
-    constexpr uint32_t scan_end = 0x16A90000;
-    constexpr uint32_t signature_size = 64;
-
-    if (bp_entry->size < signature_size) {
-      c->log.warning_f("Skipping Brutal Peeps HP client patch: BattleParamEntry_on.dat too small for signature");
-      return nullptr;
-    }
-
-    auto append_u32l = +[](std::string& out, uint32_t v) {
-      out.push_back(static_cast<char>(v & 0xFF));
-      out.push_back(static_cast<char>((v >> 8) & 0xFF));
-      out.push_back(static_cast<char>((v >> 16) & 0xFF));
-      out.push_back(static_cast<char>((v >> 24) & 0xFF));
-    };
-
     std::string suffix;
     append_u32l(suffix, scan_start);
     append_u32l(suffix, scan_end);
     append_u32l(suffix, signature_size);
-    append_u32l(suffix, 0); // patched below after diff generation
+    append_u32l(suffix, 0); // patched below after HP patch generation
     suffix.append(vanilla_data, signature_size);
 
     uint32_t patch_entry_count = 0;
-    for (uint32_t offset = 0; offset < target_data.size(); offset++) {
-      uint8_t old_byte = static_cast<uint8_t>(vanilla_data[offset]);
-      uint8_t new_byte = static_cast<uint8_t>(target_data[offset]);
-      if (old_byte == new_byte) {
-        continue;
-      }
+    for (uint32_t z = 0; z < num_bp_rows; z++) {
+      uint32_t hp_offset = ultimate_hp_base_offset + (z * stats_row_size);
+      uint16_t old_hp = static_cast<uint8_t>(vanilla_data[hp_offset]) |
+          (static_cast<uint16_t>(static_cast<uint8_t>(vanilla_data[hp_offset + 1])) << 8);
+      uint16_t new_hp = scale_u16(old_hp);
 
-      append_u32l(suffix, offset);
-      suffix.push_back(static_cast<char>(new_byte));
+      append_u32l(suffix, hp_offset);
+      suffix.push_back(static_cast<char>(new_hp & 0xFF));
+      patch_entry_count++;
+
+      append_u32l(suffix, hp_offset + 1);
+      suffix.push_back(static_cast<char>((new_hp >> 8) & 0xFF));
       patch_entry_count++;
     }
 
