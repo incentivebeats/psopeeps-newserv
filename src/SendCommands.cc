@@ -854,15 +854,19 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
       return nullptr;
     }
 
-    std::string suffix;
-    suffix.append(vanilla_data, signature_size);
-
     auto append_u32l = +[](std::string& out, uint32_t v) {
       out.push_back(static_cast<char>(v & 0xFF));
       out.push_back(static_cast<char>((v >> 8) & 0xFF));
       out.push_back(static_cast<char>((v >> 16) & 0xFF));
       out.push_back(static_cast<char>((v >> 24) & 0xFF));
     };
+
+    std::string suffix;
+    append_u32l(suffix, scan_start);
+    append_u32l(suffix, scan_end);
+    append_u32l(suffix, signature_size);
+    append_u32l(suffix, hp_patch_bytes);
+    suffix.append(vanilla_data, signature_size);
 
     for (size_t z = 0; z < 0x60; z++) {
       const auto& hp = table->stats[ultimate_index][z].char_stats.hp;
@@ -885,12 +889,7 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
         c->channel,
         c->enabled_flags,
         fn,
-        {
-            {"scan_start", scan_start},
-            {"scan_end", scan_end},
-            {"signature_size", signature_size},
-            {"patch_count", hp_patch_bytes},
-        },
+        {},
         suffix.data(),
         suffix.size());
 

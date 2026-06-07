@@ -18,13 +18,13 @@ start:
   jmp    get_data_ptr
 
 get_data_ptr_ret:
-  pop    ebx
+  pop    ebx                                  # ebx = suffix payload
 
-  mov    esi, [ebx + scan_start - data]       # candidate ptr
-  mov    edx, [ebx + scan_end - data]         # scan end
-  mov    ecx, [ebx + signature_size - data]   # signature size
+  mov    esi, [ebx]                           # scan_start
+  mov    edx, [ebx + 4]                       # scan_end
+  mov    ecx, [ebx + 8]                       # signature_size
   sub    edx, ecx                             # scan limit = end - sig_size
-  lea    edi, [ebx + payload - data]          # signature ptr
+  lea    edi, [ebx + 16]                      # signature ptr
 
 scan_again:
   cmp    esi, edx
@@ -49,16 +49,17 @@ next_candidate:
 
 found_table:
   # esi = BattleParamEntry_on.dat base
-  mov    ecx, [ebx + patch_count - data]
-  mov    edi, [ebx + signature_size - data]
-  lea    edi, [ebx + payload - data + edi]    # patch entry ptr after signature
+  mov    ecx, [ebx + 12]                      # patch entry count
+  mov    edi, [ebx + 8]                       # signature_size
+  add    edi, ebx
+  add    edi, 16                              # patch entries after header+signature
 
 patch_again:
   test   ecx, ecx
   jz     done
 
-  mov    edx, [edi]       # offset from table base
-  mov    al, [edi + 4]    # byte value
+  mov    edx, [edi]                           # offset from table base
+  mov    al, [edi + 4]                        # byte value
   mov    [esi + edx], al
 
   add    edi, 5
@@ -66,7 +67,7 @@ patch_again:
   jmp    patch_again
 
 done:
-  mov    eax, esi         # return found table base
+  mov    eax, esi                             # return found table base
   jmp    return
 
 not_found:
@@ -82,18 +83,12 @@ return:
 get_data_ptr:
   call   get_data_ptr_ret
 
-data:
-scan_start:
-  .data  0
-scan_end:
-  .data  0
-signature_size:
-  .data  0
-patch_count:
-  .data  0
-payload:
-  # Server suffix:
-  #   signature bytes
-  #   repeated patch entries:
-  #     uint32_t offset
-  #     uint8_t value
+# Server suffix starts here:
+#   uint32_t scan_start
+#   uint32_t scan_end
+#   uint32_t signature_size
+#   uint32_t patch_entry_count
+#   signature bytes
+#   repeated patch entries:
+#     uint32_t offset
+#     uint8_t value
