@@ -1,6 +1,6 @@
 [31;01m.[39;49;00m[01mmeta[39;49;00m [01mvisibility[39;49;00m[31;01m=[39;49;00m[32;01m"all"[39;49;00m
 [31;01m.[39;49;00m[01mmeta[39;49;00m [01mname[39;49;00m[31;01m=[39;49;00m[32;01m"Dragon Visual Fix"[39;49;00m
-[31;01m.[39;49;00m[01mmeta[39;49;00m [01mdescription[39;49;00m[31;01m=[39;49;00m[32;01m"PC-only fix.\nSkips the bad Dragon\nBML selector path."[39;49;00m
+[31;01m.[39;49;00m[01mmeta[39;49;00m [01mdescription[39;49;00m[31;01m=[39;49;00m[32;01m"Skips the bad Dragon\nBML selector path."[39;49;00m
 
 [01mentry_ptr[39;49;00m[31;01m:[39;49;00m
 [01mreloc0[39;49;00m[31;01m:[39;49;00m
