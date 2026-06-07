@@ -444,6 +444,37 @@ ClientFunctionIndex::ClientFunctionIndex(const std::string& root_dir, bool raise
       }
     }
   }
+
+  for (const char* probe_name : {"DragonVisualFix", "PsoPeepsDragonVisualFixPC", "RaresInQuests"}) {
+    for (uint32_t probe_sv : {SPECIFIC_VERSION_PC_V2_JP, SPECIFIC_VERSION_X86_INDETERMINATE}) {
+      std::string key = cache_key(probe_name, probe_sv);
+      auto all_it = this->all_functions.find(key);
+      auto map_it = this->functions_by_specific_version.find(probe_sv);
+      bool in_version_map = false;
+      if (map_it != this->functions_by_specific_version.end()) {
+        in_version_map = map_it->second.count(key);
+      }
+      client_functions_log.warning_f(
+          "Client function probe: name={} sv={} key={} all_functions={} version_map={} map_size={}",
+          probe_name,
+          str_for_specific_version(probe_sv),
+          key,
+          all_it != this->all_functions.end(),
+          in_version_map,
+          map_it == this->functions_by_specific_version.end() ? 0 : map_it->second.size());
+      if (all_it != this->all_functions.end()) {
+        const auto& fn = all_it->second;
+        client_functions_log.warning_f(
+            "Client function probe detail: short={} long={} visibility={} specific_version={} arch={} menu_item_id={:08X}",
+            fn->short_name,
+            fn->long_name,
+            phosg::name_for_enum(fn->visibility),
+            str_for_specific_version(fn->specific_version),
+            name_for_architecture(fn->arch),
+            static_cast<uint32_t>(fn->menu_item_id));
+      }
+    }
+  }
 }
 
 std::shared_ptr<const Menu> ClientFunctionIndex::patch_switches_menu(
