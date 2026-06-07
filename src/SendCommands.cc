@@ -1178,15 +1178,17 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
     auto promise = std::make_shared<AsyncPromise<C_ExecuteCodeResult_B3>>();
     c->function_call_response_queue.emplace_back(promise);
 
+    // This is a dynamic patch: the suffix changes by tier and by restore state.
+    // Force the code+suffix to be sent every time instead of treating it as a
+    // cached/enabled client function.
     send_function_call(
         c->channel,
-        c->enabled_flags,
+        c->enabled_flags & (~fn->client_flag),
         fn,
         {},
         suffix.data(),
         suffix.size());
 
-    c->enabled_flags |= fn->client_flag;
     promises.emplace_back(bp_filename, promise);
 
     c->log.info_f("Brutal Peeps PC ATP/HP/EXP client patch sent for {}: tier={} hp_mult={:g} atp_mult={:g} exp_mult={:g} patch_entries={} suffix_size={} scan={:08X}-{:08X}",
