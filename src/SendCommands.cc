@@ -1205,20 +1205,52 @@ asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, i
   try {
     co_await prepare_client_for_patches(c);
 
-    auto promises = (c->version() == Version::PC_V2)
-        ? send_brutal_peeps_hp_patch_pc_now(c, tier)
-        : send_brutal_peeps_hp_patch_bb_now(c, tier);
-    for (auto& it : promises) {
-      const auto& filename = it.first;
-      auto& promise = it.second;
-      if (promise && c->channel->connected()) {
-        auto result = co_await promise->get();
-        c->log.info_f("Brutal Peeps HP/ATP client patch result for {}: tier={} return_value={:08X} checksum={:08X}",
-            filename,
-            tier,
-            static_cast<uint32_t>(result.return_value),
-            static_cast<uint32_t>(result.checksum));
+    const bool is_pc_bp_patch = (c->version() == Version::PC_V2);
+    const size_t max_attempts = is_pc_bp_patch ? 5 : 1;
+
+    for (size_t attempt = 1; attempt <= max_attempts; attempt++) {
+      if (is_pc_bp_patch) {
+        asio::steady_timer timer(co_await asio::this_coro::executor);
+        timer.expires_after(std::chrono::milliseconds(750));
+        co_await timer.async_wait(asio::use_awaitable);
       }
+
+      auto promises = is_pc_bp_patch
+          ? send_brutal_peeps_hp_patch_pc_now(c, tier)
+          : send_brutal_peeps_hp_patch_bb_now(c, tier);
+
+      bool any_zero_return = false;
+      bool any_success = false;
+
+      for (auto& it : promises) {
+        const auto& filename = it.first;
+        auto& promise = it.second;
+        if (promise && c->channel->connected()) {
+          auto result = co_await promise->get();
+          uint32_t return_value = static_cast<uint32_t>(result.return_value);
+          c->log.info_f("Brutal Peeps HP/ATP client patch result for {}: tier={} attempt={}/{} return_value={:08X} checksum={:08X}",
+              filename,
+              tier,
+              attempt,
+              max_attempts,
+              return_value,
+              static_cast<uint32_t>(result.checksum));
+
+          if (return_value) {
+            any_success = true;
+          } else {
+            any_zero_return = true;
+          }
+        }
+      }
+
+      if (!is_pc_bp_patch || any_success || !any_zero_return || !c->channel->connected()) {
+        break;
+      }
+
+      c->log.warning_f("Brutal Peeps PC client patch did not find BattleParam table on attempt {}/{}; retrying",
+          attempt,
+          max_attempts);
     }
 
   } catch (const std::exception& e) {
