@@ -618,6 +618,13 @@ Lobby::JoinError Lobby::join_error_for_client(std::shared_ptr<Client> c, const s
     return JoinError::VERSION_CONFLICT;
   }
   if (this->is_game()) {
+    // Brutal Peeps PC rooms rely on PC-only BattleParam runtime patching, so don't allow DC V2 clients to join them.
+    if ((this->brutal_peeps_tier >= 1) &&
+        this->version_is_allowed(Version::PC_V2) &&
+        (c->version() != Version::PC_V2)) {
+      return JoinError::VERSION_CONFLICT;
+    }
+
     if (this->check_flag(Flag::QUEST_SELECTION_IN_PROGRESS)) {
       return JoinError::QUEST_SELECTION_IN_PROGRESS;
     }
