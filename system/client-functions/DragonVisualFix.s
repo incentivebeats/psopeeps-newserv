@@ -1,24 +1,24 @@
-[31;01m.[39;49;00m[01mmeta[39;49;00m [01mvisibility[39;49;00m[31;01m=[39;49;00m[32;01m"all"[39;49;00m
-[31;01m.[39;49;00m[01mmeta[39;49;00m [01mname[39;49;00m[31;01m=[39;49;00m[32;01m"Dragon Visual Fix"[39;49;00m
-[31;01m.[39;49;00m[01mmeta[39;49;00m [01mdescription[39;49;00m[31;01m=[39;49;00m[32;01m"Skips the bad Dragon\nBML selector path."[39;49;00m
+.meta visibility="all"
+.meta name="Dragon fix"
+.meta description="Skips the bad Dragon\nBML selector path."
 
-[01mentry_ptr[39;49;00m[31;01m:[39;49;00m
-[01mreloc0[39;49;00m[31;01m:[39;49;00m
-  [31;01m.[39;49;00m[01moffsetof[39;49;00m [01mstart[39;49;00m
-[01mstart[39;49;00m[31;01m:[39;49;00m
-  [31;01m.[39;49;00m[01minclude[39;49;00m  [36;01mWriteCodeBlocks[39;49;00m
+entry_ptr:
+reloc0:
+  .offsetof start
+start:
+  .include  WriteCodeBlocks
 
 
 
-  [31;01m.[39;49;00m[01mversions[39;49;00m [33;01m2[39;49;00m[36;01mOJW[39;49;00m
+  .versions 2OJW
 
-  [31;01m.[39;49;00m[01mdata[39;49;00m     [33;01m0x00420326[39;49;00m
-  [31;01m.[39;49;00m[01mdata[39;49;00m     [33;01m2[39;49;00m
+  .data     0x00420326
+  .data     2
   .data     0x14EB
 
 
 
-  [31;01m.[39;49;00m[01mall_versions[39;49;00m
+  .all_versions
 
-  [31;01m.[39;49;00m[01mdata[39;49;00m     [33;01m0x00000000[39;49;00m
-  [31;01m.[39;49;00m[01mdata[39;49;00m     [33;01m0x00000000[39;49;00m
+  .data     0x00000000
+  .data     0x00000000
