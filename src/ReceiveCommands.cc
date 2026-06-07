@@ -5596,8 +5596,7 @@ static asio::awaitable<void> on_6F(std::shared_ptr<Client> c, Channel::Message& 
     }
   }
 
-  if (loading_flag_cleared &&
-      ((c->version() == Version::BB_V4) || (c->version() == Version::PC_V2))) {
+  if (loading_flag_cleared && (c->version() == Version::BB_V4)) {
     int64_t brutal_peeps_hp_patch_tier = (l->brutal_peeps_tier >= 1) ? l->brutal_peeps_tier : -1;
     co_await send_brutal_peeps_hp_patch_bb(c, brutal_peeps_hp_patch_tier);
   }
