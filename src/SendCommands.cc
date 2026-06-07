@@ -2120,10 +2120,11 @@ void send_game_menu_t(std::shared_ptr<Client> c, bool is_spectator_team_list, bo
         (client_has_debug || (l->check_flag(Lobby::Flag::IS_CLIENT_CUSTOMIZATION) == c->check_flag(Client::Flag::IS_CLIENT_CUSTOMIZATION))) &&
         (l->check_flag(Lobby::Flag::IS_SPECTATOR_TEAM) == is_spectator_team_list) &&
         (!show_tournaments_only || l->tournament_match)) {
-      // Brutal Peeps PC rooms rely on PC-only BattleParam runtime patching, so don't show them to DC V2 clients.
+      // Brutal Peeps rooms rely on version-specific BattleParam patching.
+      // BB Brutal rooms are BB-only; PC Brutal rooms are PC V2-only.
       if ((l->brutal_peeps_tier >= 1) &&
-          l->version_is_allowed(Version::PC_V2) &&
-          (c->version() != Version::PC_V2)) {
+          ((l->version_is_allowed(Version::BB_V4) && (c->version() != Version::BB_V4)) ||
+              (l->version_is_allowed(Version::PC_V2) && (c->version() != Version::PC_V2)))) {
         continue;
       }
       games.emplace(l);
