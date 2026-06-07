@@ -989,22 +989,317 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
   }
 }
 
+
+static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> send_brutal_peeps_hp_patch_pc_now(
+    std::shared_ptr<Client> c,
+    int64_t tier) {
+  std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> promises;
+
+  if (c->version() != Version::PC_V2) {
+    return promises;
+  }
+  if (!c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL) ||
+      !c->check_flag(Client::Flag::SEND_FUNCTION_CALL_ACTUALLY_RUNS_CODE)) {
+    c->log.warning_f("Skipping Brutal Peeps PC client patch because client does not support executable send_function_call");
+    return promises;
+  }
+  if (!c->channel->connected()) {
+    c->log.warning_f("Skipping Brutal Peeps PC client patch because client is disconnected");
+    return promises;
+  }
+
+  try {
+    auto s = c->require_server_state();
+
+    if (tier < -1) {
+      c->log.warning_f("Skipping Brutal Peeps PC client patch for invalid tier {}", tier);
+      return promises;
+    }
+
+    const auto* target_brutal_peeps_def = brutal_peeps_tier_definition(tier);
+    if ((tier >= 0) && !target_brutal_peeps_def) {
+      c->log.warning_f("Skipping Brutal Peeps PC client patch for invalid tier {}", tier);
+      return promises;
+    }
+
+    int64_t source_tier = c->brutal_peeps_pc_battleparam_patch_tier;
+    const auto* source_brutal_peeps_def = brutal_peeps_tier_definition(source_tier);
+    if ((source_tier >= 0) && !source_brutal_peeps_def) {
+      c->log.warning_f("PC BattleParam patch source tier {} is invalid; resetting assumed source tier to vanilla", source_tier);
+      source_tier = -1;
+      source_brutal_peeps_def = nullptr;
+      c->brutal_peeps_pc_battleparam_patch_tier = -1;
+    }
+
+    if (source_tier == tier) {
+      return promises;
+    }
+
+    auto atp_mult_for_tier = +[](int64_t t) -> double {
+      switch (t) {
+        case 1:
+          return 1.01;
+        case 2:
+          return 1.02;
+        case 3:
+          return 1.03;
+        case 4:
+          return 1.04;
+        case 5:
+          return 1.05;
+        case 6:
+          return 1.06;
+        case 7:
+          return 1.07;
+        case 8:
+          return 1.08;
+        case 9:
+          return 1.09;
+        case 10:
+        case 11:
+          return 1.10;
+        default:
+          return 1.00;
+      }
+    };
+
+    constexpr const char* bp_filename = "BattleParamEntry_on.dat";
+    std::string vanilla_data = phosg::load_file("system/patch-pc/Media/PSO/BattleParamEntry_on.dat");
+
+    constexpr uint32_t scan_start = 0x01E00000;
+    constexpr uint32_t scan_end = 0x02E21000;
+    constexpr uint32_t signature_size = 64;
+
+    // PC V2 BattleParamEntry_on.dat layout:
+    // Ultimate stats rows start at 0x2880 and each stats row is 0x24 bytes.
+    // Within each row: ATP is +0x00, HP is +0x06, EXP is +0x1C.
+    //
+    // The PC memory image does not contain the full file, but the Ultimate
+    // stats block appears when an area is loaded. The scan signature must be
+    // based on the client's current patch tier, not always vanilla, so we can
+    // restore or move between BP tiers.
+    constexpr uint32_t ultimate_block_offset = 0x00002880;
+    constexpr uint32_t ultimate_atp_row_offset = 0x00;
+    constexpr uint32_t ultimate_hp_row_offset = 0x06;
+    constexpr uint32_t ultimate_exp_row_offset = 0x1C;
+    constexpr uint32_t stats_row_size = 0x24;
+    constexpr uint32_t num_bp_rows = 0x60;
+    constexpr uint32_t ultimate_block_size = num_bp_rows * stats_row_size;
+
+    auto append_u32l = +[](std::string& out, uint32_t v) {
+      out.push_back(static_cast<char>(v & 0xFF));
+      out.push_back(static_cast<char>((v >> 8) & 0xFF));
+      out.push_back(static_cast<char>((v >> 16) & 0xFF));
+      out.push_back(static_cast<char>((v >> 24) & 0xFF));
+    };
+
+    auto read_u16l = +[](const std::string& data, uint32_t offset) -> uint16_t {
+      return static_cast<uint8_t>(data[offset]) |
+          (static_cast<uint16_t>(static_cast<uint8_t>(data[offset + 1])) << 8);
+    };
+
+    auto write_u16l = +[](std::string& data, uint32_t offset, uint16_t v) {
+      data[offset] = static_cast<char>(v & 0xFF);
+      data[offset + 1] = static_cast<char>((v >> 8) & 0xFF);
+    };
+
+    auto read_u32l = +[](const std::string& data, uint32_t offset) -> uint32_t {
+      return static_cast<uint8_t>(data[offset]) |
+          (static_cast<uint32_t>(static_cast<uint8_t>(data[offset + 1])) << 8) |
+          (static_cast<uint32_t>(static_cast<uint8_t>(data[offset + 2])) << 16) |
+          (static_cast<uint32_t>(static_cast<uint8_t>(data[offset + 3])) << 24);
+    };
+
+    auto write_u32l = +[](std::string& data, uint32_t offset, uint32_t v) {
+      data[offset] = static_cast<char>(v & 0xFF);
+      data[offset + 1] = static_cast<char>((v >> 8) & 0xFF);
+      data[offset + 2] = static_cast<char>((v >> 16) & 0xFF);
+      data[offset + 3] = static_cast<char>((v >> 24) & 0xFF);
+    };
+
+    auto scale_u16 = +[](uint32_t v, double scale) -> uint16_t {
+      if (v == 0) {
+        return 0;
+      }
+      uint32_t scaled = static_cast<uint32_t>((static_cast<double>(v) * scale) + 0.5);
+      if (scaled < 1) {
+        scaled = 1;
+      }
+      if (scaled > 0xFFFF) {
+        scaled = 0xFFFF;
+      }
+      return static_cast<uint16_t>(scaled);
+    };
+
+    auto scale_u32 = +[](uint32_t v, double scale) -> uint32_t {
+      if (v == 0) {
+        return 0;
+      }
+      double scaled_f = (static_cast<double>(v) * scale) + 0.5;
+      if (scaled_f < 1.0) {
+        return 1;
+      }
+      if (scaled_f > 4294967295.0) {
+        return 0xFFFFFFFF;
+      }
+      return static_cast<uint32_t>(scaled_f);
+    };
+
+    auto append_patch_entry = [&](std::string& out, uint32_t offset, uint32_t value, uint8_t size) {
+      append_u32l(out, offset);
+      out.push_back(static_cast<char>(size));
+      for (uint8_t x = 0; x < size; x++) {
+        out.push_back(static_cast<char>((value >> (x * 8)) & 0xFF));
+      }
+    };
+
+    constexpr uint32_t last_needed_offset = ultimate_block_offset + ultimate_block_size;
+    if (vanilla_data.size() < last_needed_offset) {
+      c->log.warning_f("Skipping Brutal Peeps PC client patch: {} too small for Ultimate stats table", bp_filename);
+      return promises;
+    }
+
+    auto build_block_for_tier = [&](int64_t block_tier) -> std::string {
+      std::string block = vanilla_data.substr(ultimate_block_offset, ultimate_block_size);
+
+      const auto* def = brutal_peeps_tier_definition(block_tier);
+      const double hp_mult = def ? def->enemy_hp_multiplier : 1.0;
+      const double exp_mult = def ? def->exp_multiplier : 1.0;
+      const double atp_mult = atp_mult_for_tier(block_tier);
+
+      for (uint32_t z = 0; z < num_bp_rows; z++) {
+        const uint32_t row_offset = z * stats_row_size;
+
+        const uint32_t atp_offset = row_offset + ultimate_atp_row_offset;
+        const uint32_t hp_offset = row_offset + ultimate_hp_row_offset;
+        const uint32_t exp_offset = row_offset + ultimate_exp_row_offset;
+
+        write_u16l(block, atp_offset, scale_u16(read_u16l(block, atp_offset), atp_mult));
+        write_u16l(block, hp_offset, scale_u16(read_u16l(block, hp_offset), hp_mult));
+        write_u32l(block, exp_offset, scale_u32(read_u32l(block, exp_offset), exp_mult));
+      }
+
+      return block;
+    };
+
+    const std::string source_block = build_block_for_tier(source_tier);
+    const std::string target_block = build_block_for_tier(tier);
+
+    std::string suffix;
+    append_u32l(suffix, scan_start);
+    append_u32l(suffix, scan_end);
+    append_u32l(suffix, signature_size);
+    append_u32l(suffix, 0); // patched below after patch generation
+    suffix.append(source_block.data(), signature_size);
+
+    uint32_t patch_entry_count = 0;
+
+    for (uint32_t z = 0; z < num_bp_rows; z++) {
+      const uint32_t row_patch_offset = z * stats_row_size;
+
+      const uint32_t atp_patch_offset = row_patch_offset + ultimate_atp_row_offset;
+      const uint32_t hp_patch_offset = row_patch_offset + ultimate_hp_row_offset;
+      const uint32_t exp_patch_offset = row_patch_offset + ultimate_exp_row_offset;
+
+      append_patch_entry(suffix, atp_patch_offset, read_u16l(target_block, atp_patch_offset), 2);
+      patch_entry_count++;
+
+      append_patch_entry(suffix, hp_patch_offset, read_u16l(target_block, hp_patch_offset), 2);
+      patch_entry_count++;
+
+      append_patch_entry(suffix, exp_patch_offset, read_u32l(target_block, exp_patch_offset), 4);
+      patch_entry_count++;
+    }
+
+    suffix[12] = static_cast<char>(patch_entry_count & 0xFF);
+    suffix[13] = static_cast<char>((patch_entry_count >> 8) & 0xFF);
+    suffix[14] = static_cast<char>((patch_entry_count >> 16) & 0xFF);
+    suffix[15] = static_cast<char>((patch_entry_count >> 24) & 0xFF);
+
+    auto fn = s->client_functions->get("PsoPeepsBrutalPeepsPC", c->specific_version);
+
+    auto promise = std::make_shared<AsyncPromise<C_ExecuteCodeResult_B3>>();
+    c->function_call_response_queue.emplace_back(promise);
+
+    // This is a dynamic patch: the suffix changes by tier and by restore state.
+    // Force the code+suffix to be sent every time instead of treating it as a
+    // cached/enabled client function.
+    send_function_call(
+        c->channel,
+        c->enabled_flags & (~fn->client_flag),
+        fn,
+        {},
+        suffix.data(),
+        suffix.size());
+
+    promises.emplace_back(bp_filename, promise);
+
+    const auto* target_def_for_log = brutal_peeps_tier_definition(tier);
+    const double hp_mult_for_log = target_def_for_log ? target_def_for_log->enemy_hp_multiplier : 1.0;
+    const double exp_mult_for_log = target_def_for_log ? target_def_for_log->exp_multiplier : 1.0;
+    const double atp_mult_for_log = atp_mult_for_tier(tier);
+
+    c->log.info_f("Brutal Peeps PC ATP/HP/EXP client patch sent for {}: source_tier={} target_tier={} hp_mult={:g} atp_mult={:g} exp_mult={:g} patch_entries={} suffix_size={} scan={:08X}-{:08X}",
+        bp_filename, source_tier, tier, hp_mult_for_log, atp_mult_for_log, exp_mult_for_log, patch_entry_count, suffix.size(), scan_start, scan_end);
+
+    return promises;
+
+  } catch (const std::exception& e) {
+    c->log.warning_f("Failed to send Brutal Peeps PC client patch: {}", e.what());
+    return promises;
+  }
+}
+
+
 asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, int64_t tier) {
   try {
     co_await prepare_client_for_patches(c);
 
-    auto promises = send_brutal_peeps_hp_patch_bb_now(c, tier);
-    for (auto& it : promises) {
-      const auto& filename = it.first;
-      auto& promise = it.second;
-      if (promise && c->channel->connected()) {
-        auto result = co_await promise->get();
-        c->log.info_f("Brutal Peeps HP/ATP client patch result for {}: tier={} return_value={:08X} checksum={:08X}",
-            filename,
-            tier,
-            static_cast<uint32_t>(result.return_value),
-            static_cast<uint32_t>(result.checksum));
+    const bool is_pc_bp_patch = (c->version() == Version::PC_V2);
+    const size_t max_attempts = 1;
+
+    for (size_t attempt = 1; attempt <= max_attempts; attempt++) {
+      auto promises = is_pc_bp_patch
+          ? send_brutal_peeps_hp_patch_pc_now(c, tier)
+          : send_brutal_peeps_hp_patch_bb_now(c, tier);
+
+      bool any_zero_return = false;
+      bool any_success = false;
+
+      for (auto& it : promises) {
+        const auto& filename = it.first;
+        auto& promise = it.second;
+        if (promise && c->channel->connected()) {
+          auto result = co_await promise->get();
+          uint32_t return_value = static_cast<uint32_t>(result.return_value);
+          c->log.info_f("Brutal Peeps HP/ATP client patch result for {}: tier={} attempt={}/{} return_value={:08X} checksum={:08X}",
+              filename,
+              tier,
+              attempt,
+              max_attempts,
+              return_value,
+              static_cast<uint32_t>(result.checksum));
+
+          if (is_pc_bp_patch && return_value) {
+            c->brutal_peeps_pc_battleparam_patch_tier = static_cast<int8_t>(tier);
+            c->log.info_f("Brutal Peeps PC BattleParam patch state is now tier {}", tier);
+          }
+
+          if (return_value) {
+            any_success = true;
+          } else {
+            any_zero_return = true;
+          }
+        }
       }
+
+      if (!is_pc_bp_patch || any_success || !any_zero_return || !c->channel->connected() || (attempt >= max_attempts)) {
+        break;
+      }
+
+      c->log.warning_f("Brutal Peeps PC client patch did not find BattleParam table on attempt {}/{}; retrying",
+          attempt,
+          max_attempts);
     }
 
   } catch (const std::exception& e) {

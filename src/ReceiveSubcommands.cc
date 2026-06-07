@@ -3742,6 +3742,15 @@ static asio::awaitable<void> on_trigger_set_event(std::shared_ptr<Client> c, Sub
   auto event_sts = l->map_state->event_states_for_id(c->version(), cmd.floor, cmd.event_id);
   l->log.info_f("Client triggered set events with floor {:02X} and ID {:X} ({} events)",
       cmd.floor, cmd.event_id, event_sts.size());
+
+  // PSO Peeps: PSO PC does not load the BattleParam table while still in
+  // Pioneer 2, so the Brutal Peeps ATP/HP/EXP memory patch must be delayed
+  // until the client reaches a combat floor.
+  if ((c->version() == Version::PC_V2) &&
+      (cmd.floor >= 1) &&
+      (l->brutal_peeps_tier >= 1)) {
+    co_await send_brutal_peeps_hp_patch_bb(c, l->brutal_peeps_tier);
+  }
   for (auto ev_st : event_sts) {
     ev_st->flags |= 0x04;
     if (c->check_flag(Client::Flag::DEBUG_ENABLED)) {

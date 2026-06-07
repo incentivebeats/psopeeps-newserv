@@ -153,6 +153,7 @@ public:
   uint8_t override_lobby_number = 0x80; // 80 = no override
   int64_t override_random_seed = -1;
   int8_t selected_brutal_peeps_tier = -1; // -1 = normal lobby/game; 1..11 = requested Brutal Peeps tier
+  int8_t brutal_peeps_pc_battleparam_patch_tier = -1; // -1 = vanilla; 1..11 = currently applied PC BattleParam BP tier
   std::unique_ptr<Variations> override_variations;
   VectorXYZF pos;
   uint32_t floor = 0x0F;
