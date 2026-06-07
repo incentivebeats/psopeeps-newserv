@@ -251,6 +251,9 @@ ClientFunctionIndex::ClientFunctionIndex(const std::string& root_dir, bool raise
         add_directory(item_path);
       } else if (item_path.ends_with(".s") && std::filesystem::is_regular_file(item_path)) {
         client_functions_log.debug_f("Adding {} from {}", item_name, item_path);
+        if (item_name.find("Dragon") != std::string::npos) {
+          client_functions_log.warning_f("Dragon source load debug: adding {} from {}", item_name, item_path);
+        }
         if (!source_files.emplace(item_name, phosg::load_file(item_path)).second) {
           throw std::runtime_error(std::format("Duplicate source filename: {}", item_name));
         }
@@ -283,6 +286,20 @@ ClientFunctionIndex::ClientFunctionIndex(const std::string& root_dir, bool raise
       preprocessed = preprocess_function_code(source);
     } catch (const std::exception& e) {
       throw std::runtime_error(std::format("({} preprocessing) {}", source_filename, e.what()));
+    }
+
+    if (source_filename.find("Dragon") != std::string::npos) {
+      client_functions_log.warning_f(
+          "Dragon preprocess debug: source={} produced {} version chunk(s)",
+          source_filename,
+          preprocessed.size());
+      for (const auto& [debug_sv, debug_source] : preprocessed) {
+        client_functions_log.warning_f(
+            "Dragon preprocess debug: source={} sv={} chunk_size={}",
+            source_filename,
+            str_for_specific_version(debug_sv),
+            debug_source.size());
+      }
     }
 
     for (const auto& [specific_version, source] : preprocessed) {
