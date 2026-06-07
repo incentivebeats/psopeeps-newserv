@@ -800,22 +800,40 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
     }
 
     const double mult = brutal_peeps_def ? brutal_peeps_def->enemy_hp_multiplier : 1.0;
+
+    const std::string bp_filename = [&]() -> std::string {
+      auto l = c->lobby.lock();
+      if (l && l->is_game()) {
+        switch (l->episode) {
+          case Episode::EP1:
+            return "BattleParamEntry_on.dat";
+          case Episode::EP2:
+            return "BattleParamEntry_lab_on.dat";
+          case Episode::EP4:
+            return "BattleParamEntry_ep4_on.dat";
+          default:
+            break;
+        }
+      }
+      return "BattleParamEntry_on.dat";
+    }();
+
     const BBStreamFile::Entry* bp_entry = nullptr;
 
     for (const auto& sf_entry : s->bb_stream_file->entries) {
-      if (sf_entry.filename == "BattleParamEntry_on.dat") {
+      if (sf_entry.filename == bp_filename) {
         bp_entry = &sf_entry;
         break;
       }
     }
     if (!bp_entry) {
-      c->log.warning_f("Skipping Brutal Peeps HP client patch: BattleParamEntry_on.dat not found in BB stream file");
+      c->log.warning_f("Skipping Brutal Peeps HP client patch: {} not found in BB stream file", bp_filename);
       return nullptr;
     }
     if ((bp_entry->offset > s->bb_stream_file->data.size()) ||
         (bp_entry->size > (s->bb_stream_file->data.size() - bp_entry->offset)) ||
         (bp_entry->size < sizeof(BattleParamsIndex::Table))) {
-      c->log.warning_f("Skipping Brutal Peeps HP client patch: invalid BattleParamEntry_on.dat range");
+      c->log.warning_f("Skipping Brutal Peeps HP client patch: invalid {} range", bp_filename);
       return nullptr;
     }
 
@@ -832,11 +850,11 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
     constexpr uint32_t num_bp_rows = 0x60;
 
     if (bp_entry->size < signature_size) {
-      c->log.warning_f("Skipping Brutal Peeps HP client patch: BattleParamEntry_on.dat too small for signature");
+      c->log.warning_f("Skipping Brutal Peeps HP client patch: {} too small for signature", bp_filename);
       return nullptr;
     }
     if (bp_entry->size < (ultimate_hp_base_offset + ((num_bp_rows - 1) * stats_row_size) + 2)) {
-      c->log.warning_f("Skipping Brutal Peeps HP client patch: BattleParamEntry_on.dat too small for Ultimate HP table");
+      c->log.warning_f("Skipping Brutal Peeps HP client patch: {} too small for Ultimate HP table", bp_filename);
       return nullptr;
     }
 
@@ -904,8 +922,8 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
 
     c->enabled_flags |= fn->client_flag;
 
-    c->log.info_f("Brutal Peeps HP client patch sent: tier={} mult={:g} patch_entries={} scan={:08X}-{:08X}",
-        tier, mult, patch_entry_count, scan_start, scan_end);
+    c->log.info_f("Brutal Peeps HP client patch sent for {}: tier={} mult={:g} patch_entries={} scan={:08X}-{:08X}",
+        bp_filename, tier, mult, patch_entry_count, scan_start, scan_end);
 
     return promise;
 
