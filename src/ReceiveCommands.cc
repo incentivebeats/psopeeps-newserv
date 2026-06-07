@@ -5563,7 +5563,15 @@ static asio::awaitable<void> send_brutal_peeps_pc_patch_until_area_load(std::sha
     }
 
     int64_t brutal_peeps_hp_patch_tier = (l->brutal_peeps_tier >= 1) ? l->brutal_peeps_tier : -1;
+    if (c->brutal_peeps_pc_battleparam_patch_tier == brutal_peeps_hp_patch_tier) {
+      co_return;
+    }
+
     co_await send_brutal_peeps_hp_patch_bb(c, brutal_peeps_hp_patch_tier);
+
+    if (c->brutal_peeps_pc_battleparam_patch_tier == brutal_peeps_hp_patch_tier) {
+      co_return;
+    }
   }
 }
 
@@ -5621,6 +5629,9 @@ static asio::awaitable<void> on_6F(std::shared_ptr<Client> c, Channel::Message& 
     int64_t brutal_peeps_hp_patch_tier = (l->brutal_peeps_tier >= 1) ? l->brutal_peeps_tier : -1;
     co_await send_brutal_peeps_hp_patch_bb(c, brutal_peeps_hp_patch_tier);
   } else if (loading_flag_cleared && (c->version() == Version::PC_V2)) {
+    // PC unloads/reloads the area BattleParam table between room loads; when it
+    // appears again, assume it starts from the file's vanilla values.
+    c->brutal_peeps_pc_battleparam_patch_tier = -1;
     auto s = c->require_server_state();
     asio::co_spawn(*s->io_context, send_brutal_peeps_pc_patch_until_area_load(c), asio::detached);
   }
