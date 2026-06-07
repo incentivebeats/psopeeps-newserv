@@ -802,6 +802,34 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
     }
 
     const double mult = brutal_peeps_def ? brutal_peeps_def->enemy_hp_multiplier : 1.0;
+    const double atp_mult = [&]() -> double {
+      switch (tier) {
+        case 1:
+          return 1.05;
+        case 2:
+          return 1.07;
+        case 3:
+          return 1.09;
+        case 4:
+          return 1.10;
+        case 5:
+          return 1.20;
+        case 6:
+          return 1.30;
+        case 7:
+          return 1.40;
+        case 8:
+          return 1.50;
+        case 9:
+          return 1.60;
+        case 10:
+          return 1.70;
+        case 11:
+          return 1.75;
+        default:
+          return 1.00;
+      }
+    }();
 
     std::vector<std::string> bp_filenames;
     auto l = c->lobby.lock();
@@ -834,7 +862,9 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
     constexpr uint32_t signature_size = 64;
 
     // Raw BattleParamEntry*.dat layout:
-    // Ultimate stats HP starts at 0x2886 and each stats row is 0x24 bytes.
+    // Ultimate stats rows start at 0x2880 and each stats row is 0x24 bytes.
+    // Within each row: ATP is +0x00, HP is +0x06.
+    constexpr uint32_t ultimate_atp_base_offset = 0x00002880;
     constexpr uint32_t ultimate_hp_base_offset = 0x00002886;
     constexpr uint32_t stats_row_size = 0x24;
     constexpr uint32_t num_bp_rows = 0x60;
@@ -846,11 +876,11 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
       out.push_back(static_cast<char>((v >> 24) & 0xFF));
     };
 
-    auto scale_u16 = [mult](uint32_t v) -> uint16_t {
+    auto scale_u16 = +[](uint32_t v, double scale) -> uint16_t {
       if (v == 0) {
         return 0;
       }
-      uint32_t scaled = static_cast<uint32_t>((static_cast<double>(v) * mult) + 0.5);
+      uint32_t scaled = static_cast<uint32_t>((static_cast<double>(v) * scale) + 0.5);
       if (scaled < 1) {
         scaled = 1;
       }
@@ -889,7 +919,7 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
         continue;
       }
       if (bp_entry->size < (ultimate_hp_base_offset + ((num_bp_rows - 1) * stats_row_size) + 2)) {
-        c->log.warning_f("Skipping Brutal Peeps HP client patch: {} too small for Ultimate HP table", bp_filename);
+        c->log.warning_f("Skipping Brutal Peeps HP/ATP client patch: {} too small for Ultimate stats table", bp_filename);
         continue;
       }
 
@@ -902,10 +932,23 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
 
       uint32_t patch_entry_count = 0;
       for (uint32_t z = 0; z < num_bp_rows; z++) {
+        uint32_t atp_offset = ultimate_atp_base_offset + (z * stats_row_size);
+        uint16_t old_atp = static_cast<uint8_t>(vanilla_data[atp_offset]) |
+            (static_cast<uint16_t>(static_cast<uint8_t>(vanilla_data[atp_offset + 1])) << 8);
+        uint16_t new_atp = scale_u16(old_atp, atp_mult);
+
+        append_u32l(suffix, atp_offset);
+        suffix.push_back(static_cast<char>(new_atp & 0xFF));
+        patch_entry_count++;
+
+        append_u32l(suffix, atp_offset + 1);
+        suffix.push_back(static_cast<char>((new_atp >> 8) & 0xFF));
+        patch_entry_count++;
+
         uint32_t hp_offset = ultimate_hp_base_offset + (z * stats_row_size);
         uint16_t old_hp = static_cast<uint8_t>(vanilla_data[hp_offset]) |
             (static_cast<uint16_t>(static_cast<uint8_t>(vanilla_data[hp_offset + 1])) << 8);
-        uint16_t new_hp = scale_u16(old_hp);
+        uint16_t new_hp = scale_u16(old_hp, mult);
 
         append_u32l(suffix, hp_offset);
         suffix.push_back(static_cast<char>(new_hp & 0xFF));
@@ -935,8 +978,8 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
       c->enabled_flags |= fn->client_flag;
       promises.emplace_back(bp_filename, promise);
 
-      c->log.info_f("Brutal Peeps HP client patch sent for {}: tier={} mult={:g} patch_entries={} scan={:08X}-{:08X}",
-          bp_filename, tier, mult, patch_entry_count, scan_start, scan_end);
+      c->log.info_f("Brutal Peeps HP/ATP client patch sent for {}: tier={} hp_mult={:g} atp_mult={:g} patch_entries={} scan={:08X}-{:08X}",
+          bp_filename, tier, mult, atp_mult, patch_entry_count, scan_start, scan_end);
     }
 
     return promises;
@@ -957,7 +1000,7 @@ asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, i
       auto& promise = it.second;
       if (promise && c->channel->connected()) {
         auto result = co_await promise->get();
-        c->log.info_f("Brutal Peeps HP client patch result for {}: tier={} return_value={:08X} checksum={:08X}",
+        c->log.info_f("Brutal Peeps HP/ATP client patch result for {}: tier={} return_value={:08X} checksum={:08X}",
             filename,
             tier,
             static_cast<uint32_t>(result.return_value),
