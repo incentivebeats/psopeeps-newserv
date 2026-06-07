@@ -846,10 +846,9 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
 
     constexpr uint32_t scan_start = 0x16760000;
     constexpr uint32_t scan_end = 0x16A90000;
-    constexpr uint32_t signature_offset = 0x00002800;
-    constexpr uint32_t signature_size = 0x80;
+    constexpr uint32_t signature_size = 64;
 
-    if (bp_entry->size < (signature_offset + signature_size)) {
+    if (bp_entry->size < signature_size) {
       c->log.warning_f("Skipping Brutal Peeps HP client patch: BattleParamEntry_on.dat too small for signature");
       return nullptr;
     }
@@ -864,10 +863,9 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
     std::string suffix;
     append_u32l(suffix, scan_start);
     append_u32l(suffix, scan_end);
-    append_u32l(suffix, signature_offset);
     append_u32l(suffix, signature_size);
     append_u32l(suffix, 0); // patched below after diff generation
-    suffix.append(vanilla_data + signature_offset, signature_size);
+    suffix.append(vanilla_data, signature_size);
 
     uint32_t patch_entry_count = 0;
     for (uint32_t offset = 0; offset < target_data.size(); offset++) {
@@ -882,10 +880,10 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
       patch_entry_count++;
     }
 
-    suffix[16] = static_cast<char>(patch_entry_count & 0xFF);
-    suffix[17] = static_cast<char>((patch_entry_count >> 8) & 0xFF);
-    suffix[18] = static_cast<char>((patch_entry_count >> 16) & 0xFF);
-    suffix[19] = static_cast<char>((patch_entry_count >> 24) & 0xFF);
+    suffix[12] = static_cast<char>(patch_entry_count & 0xFF);
+    suffix[13] = static_cast<char>((patch_entry_count >> 8) & 0xFF);
+    suffix[14] = static_cast<char>((patch_entry_count >> 16) & 0xFF);
+    suffix[15] = static_cast<char>((patch_entry_count >> 24) & 0xFF);
 
     auto fn = s->client_functions->get("PsoPeepsBrutalPeepsHP", c->specific_version);
 
@@ -902,8 +900,8 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
 
     c->enabled_flags |= fn->client_flag;
 
-    c->log.info_f("Brutal Peeps HP client patch sent: tier={} mult={:g} patch_entries={} signature_offset={:05X} scan={:08X}-{:08X}",
-        tier, mult, patch_entry_count, signature_offset, scan_start, scan_end);
+    c->log.info_f("Brutal Peeps HP client patch sent: tier={} mult={:g} patch_entries={} scan={:08X}-{:08X}",
+        tier, mult, patch_entry_count, scan_start, scan_end);
 
     return promise;
 
