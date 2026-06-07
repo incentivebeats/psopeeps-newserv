@@ -3773,6 +3773,27 @@ static void on_joinable_quest_loaded(std::shared_ptr<Client> c) {
     leader_c->expected_game_state_sync_commands.emplace(0x6C00 | (c->lobby_client_id));
     leader_c->expected_game_state_sync_commands.emplace(0x6D00 | (c->lobby_client_id));
     leader_c->expected_game_state_sync_commands.emplace(0x6E00 | (c->lobby_client_id));
+    if (((c->version() == Version::BB_V4) || (c->version() == Version::PC_V2)) && l->is_game()) {
+      const int8_t room_brutal_peeps_tier = l->brutal_peeps_tier;
+      const int8_t client_brutal_peeps_tier = c->selected_brutal_peeps_tier;
+
+      if ((room_brutal_peeps_tier >= 1) && (client_brutal_peeps_tier != room_brutal_peeps_tier)) {
+        send_message_box(c, std::format(
+            "$C6Must have Brutal Peeps +{} selected\nto join this room.\n\n"
+            "$C7Use Transfer Ship and select\nBrutal Peeps +{} first.",
+            static_cast<int>(room_brutal_peeps_tier),
+            static_cast<int>(room_brutal_peeps_tier)));
+        return;
+      }
+
+      if ((room_brutal_peeps_tier < 1) && (client_brutal_peeps_tier >= 1)) {
+        send_message_box(c,
+            "$C6Disable Brutal Peeps before\njoining a normal room.\n\n"
+            "$C7Use Transfer Ship and select\nGo to lobby first.");
+        return;
+      }
+    }
+
     c->log.info_f("Creating game join command queue");
     c->game_join_command_queue = std::make_unique<std::deque<Client::JoinCommand>>();
   } else {
