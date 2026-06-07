@@ -2881,7 +2881,6 @@ static asio::awaitable<void> on_10_main_menu(std::shared_ptr<Client> c, uint32_t
     c->log.info_f("Brutal Peeps +{} selected from BB menu at level {}", tier, character_level);
 
     co_await send_auto_patches_if_needed(c);
-    co_await send_brutal_peeps_hp_patch_bb(c, tier);
     co_await enable_save_if_needed(c);
     send_lobby_list(c);
     if (!c->lobby.lock()) {
@@ -6293,9 +6292,11 @@ static asio::awaitable<void> on_6F(std::shared_ptr<Client> c, Channel::Message& 
 
   // Episode 3 sends a 6F after a CAx21 (end battle) command, so we shouldn't reassign the item IDs again in that case
   // (even though item IDs really don't matter for Ep3)
+  bool loading_flag_cleared = false;
   if (c->check_flag(Client::Flag::LOADING)) {
     c->clear_flag(Client::Flag::LOADING);
     c->log.info_f("LOADING flag cleared");
+    loading_flag_cleared = true;
 
     // The client sends 6F when it has created its TObjPlayer and assigned its item IDs. For the leader, however, this
     // happens before any inbound commands are processed, so we already did it when the client was added to the lobby.
@@ -6303,6 +6304,11 @@ static asio::awaitable<void> on_6F(std::shared_ptr<Client> c, Channel::Message& 
     if ((msg.command == 0x006F) && (c->lobby_client_id != l->leader_id)) {
       l->assign_inventory_and_bank_item_ids(c, true);
     }
+  }
+
+  if (loading_flag_cleared && (c->version() == Version::BB_V4)) {
+    int64_t brutal_peeps_hp_patch_tier = (l->brutal_peeps_tier >= 1) ? l->brutal_peeps_tier : -1;
+    co_await send_brutal_peeps_hp_patch_bb(c, brutal_peeps_hp_patch_tier);
   }
 
   // DC NTE creates players in the invisible state by default; if the joiner is not DC NTE, it won't send 6x23 to make

@@ -912,7 +912,11 @@ asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, i
 
     auto promise = send_brutal_peeps_hp_patch_bb_now(c, tier);
     if (promise && c->channel->connected()) {
-      co_await promise->get();
+      auto result = co_await promise->get();
+      c->log.info_f("Brutal Peeps HP client patch result: tier={} return_value={:08X} checksum={:08X}",
+          tier,
+          static_cast<uint32_t>(result.return_value),
+          static_cast<uint32_t>(result.checksum));
     }
 
   } catch (const std::exception& e) {
