@@ -43,17 +43,8 @@ start:
 
 
 
-  .versions 2OJW
-
-  .data     0x004DFC9A
-  .data     2
-  nop
-  nop
-
-  .data     0x004E03F4
-  .data     2
-  nop
-  nop
+  # PSO Peeps: PC 2OJW temporarily disabled while testing PC WriteCodeBlocks.
+  # The disk-patched bytes work, but runtime menu delivery is crashing.
 
 
 
