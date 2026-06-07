@@ -14,23 +14,24 @@ start:
   push   esi
   push   edi
   push   ebp
+  push   0                                  # [esp] = last matched table base / 0
 
   jmp    get_data_ptr
 
 get_data_ptr_ret:
-  pop    ebx                                  # ebx = suffix payload
+  pop    ebx                                # ebx = suffix payload
 
-  mov    esi, [ebx]                           # scan_start
-  mov    edx, [ebx + 4]                       # scan_end
-  mov    ecx, [ebx + 8]                       # signature_size
-  sub    edx, ecx                             # scan limit = end - sig_size
-  lea    edi, [ebx + 16]                      # signature ptr
+  mov    esi, [ebx]                         # scan_start
 
 scan_again:
+  mov    edx, [ebx + 4]                     # scan_end
+  mov    ecx, [ebx + 8]                     # signature_size
+  sub    edx, ecx                           # scan limit = end - sig_size
   cmp    esi, edx
-  ja     not_found
+  ja     return
 
   xor    ebp, ebp
+  lea    edi, [ebx + 16]                    # signature ptr
 
 compare_again:
   cmp    ebp, ecx
@@ -48,32 +49,32 @@ next_candidate:
   jmp    scan_again
 
 found_table:
-  # esi = BattleParamEntry_on.dat base
-  mov    ecx, [ebx + 12]                      # patch entry count
-  mov    edi, [ebx + 8]                       # signature_size
-  add    edi, ebx
-  add    edi, 16                              # patch entries after header+signature
+  # esi = one matching BattleParam table base
+  mov    [esp], esi                         # remember last match for return_value
+
+  mov    ecx, [ebx + 12]                    # patch entry count
+  mov    edi, [ebx + 8]                     # signature_size
+  lea    edi, [ebx + edi + 16]              # patch entries after header+signature
 
 patch_again:
   test   ecx, ecx
-  jz     done
+  jz     after_patch
 
-  mov    edx, [edi]                           # offset from table base
-  mov    al, [edi + 4]                        # byte value
+  mov    edx, [edi]                         # offset from table base
+  mov    al, [edi + 4]                      # byte value
   mov    [esi + edx], al
 
   add    edi, 5
   dec    ecx
   jmp    patch_again
 
-done:
-  mov    eax, esi                             # return found table base
-  jmp    return
-
-not_found:
-  xor    eax, eax
+after_patch:
+  inc    esi                                # continue scanning after this match
+  jmp    scan_again
 
 return:
+  mov    eax, [esp]                         # 0 if none found, else last matched base
+  add    esp, 4
   pop    ebp
   pop    edi
   pop    esi

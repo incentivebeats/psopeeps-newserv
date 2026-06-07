@@ -847,7 +847,6 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
     constexpr uint32_t scan_start = 0x16760000;
     constexpr uint32_t scan_end = 0x16A90000;
     constexpr uint32_t signature_size = 64;
-    constexpr uint32_t hp_patch_bytes = 0x60 * 2;
 
     if (bp_entry->size < signature_size) {
       c->log.warning_f("Skipping Brutal Peeps HP client patch: BattleParamEntry_on.dat too small for signature");
@@ -865,20 +864,26 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
     append_u32l(suffix, scan_start);
     append_u32l(suffix, scan_end);
     append_u32l(suffix, signature_size);
-    append_u32l(suffix, hp_patch_bytes);
+    append_u32l(suffix, 0); // patched below after diff generation
     suffix.append(vanilla_data, signature_size);
 
-    for (size_t z = 0; z < 0x60; z++) {
-      const auto& hp = table->stats[ultimate_index][z].char_stats.hp;
-      uint32_t hp_offset = reinterpret_cast<const char*>(&hp) - target_data.data();
-      const uint8_t* hp_bytes = reinterpret_cast<const uint8_t*>(&hp);
+    uint32_t patch_entry_count = 0;
+    for (uint32_t offset = 0; offset < target_data.size(); offset++) {
+      uint8_t old_byte = static_cast<uint8_t>(vanilla_data[offset]);
+      uint8_t new_byte = static_cast<uint8_t>(target_data[offset]);
+      if (old_byte == new_byte) {
+        continue;
+      }
 
-      append_u32l(suffix, hp_offset);
-      suffix.push_back(static_cast<char>(hp_bytes[0]));
-
-      append_u32l(suffix, hp_offset + 1);
-      suffix.push_back(static_cast<char>(hp_bytes[1]));
+      append_u32l(suffix, offset);
+      suffix.push_back(static_cast<char>(new_byte));
+      patch_entry_count++;
     }
+
+    suffix[12] = static_cast<char>(patch_entry_count & 0xFF);
+    suffix[13] = static_cast<char>((patch_entry_count >> 8) & 0xFF);
+    suffix[14] = static_cast<char>((patch_entry_count >> 16) & 0xFF);
+    suffix[15] = static_cast<char>((patch_entry_count >> 24) & 0xFF);
 
     auto fn = s->client_functions->get("PsoPeepsBrutalPeepsHP", c->specific_version);
 
@@ -895,8 +900,8 @@ static std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>> send_brutal_peeps_h
 
     c->enabled_flags |= fn->client_flag;
 
-    c->log.info_f("Brutal Peeps HP client patch sent: tier={} mult={:g} patch_bytes={} scan={:08X}-{:08X}",
-        tier, mult, hp_patch_bytes, scan_start, scan_end);
+    c->log.info_f("Brutal Peeps HP client patch sent: tier={} mult={:g} patch_entries={} scan={:08X}-{:08X}",
+        tier, mult, patch_entry_count, scan_start, scan_end);
 
     return promise;
 
