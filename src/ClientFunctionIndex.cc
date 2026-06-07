@@ -446,7 +446,7 @@ ClientFunctionIndex::ClientFunctionIndex(const std::string& root_dir, bool raise
   }
 
   for (const char* probe_name : {"DragonVisualFix", "PsoPeepsDragonVisualFixPC", "RaresInQuests"}) {
-    for (uint32_t probe_sv : {SPECIFIC_VERSION_PC_V2_JP, SPECIFIC_VERSION_X86_INDETERMINATE}) {
+    for (uint32_t probe_sv : {0x324F4A57u, SPECIFIC_VERSION_X86_INDETERMINATE}) {
       std::string key = cache_key(probe_name, probe_sv);
       auto all_it = this->all_functions.find(key);
       auto map_it = this->functions_by_specific_version.find(probe_sv);
