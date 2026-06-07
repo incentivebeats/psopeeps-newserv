@@ -805,27 +805,26 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
     const double atp_mult = [&]() -> double {
       switch (tier) {
         case 1:
-          return 1.05;
+          return 1.01;
         case 2:
-          return 1.07;
+          return 1.02;
         case 3:
-          return 1.09;
+          return 1.03;
         case 4:
-          return 1.10;
+          return 1.04;
         case 5:
-          return 1.20;
+          return 1.05;
         case 6:
-          return 1.30;
+          return 1.06;
         case 7:
-          return 1.40;
+          return 1.07;
         case 8:
-          return 1.50;
+          return 1.08;
         case 9:
-          return 1.60;
+          return 1.09;
         case 10:
-          return 1.70;
         case 11:
-          return 1.75;
+          return 1.10;
         default:
           return 1.00;
       }
