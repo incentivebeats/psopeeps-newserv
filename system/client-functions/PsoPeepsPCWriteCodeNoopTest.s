@@ -1,6 +1,6 @@
 .meta visibility="all"
-.meta name="PC data noop"
-.meta description="PC-only test.\nWrites zeros over\nwritable data."
+.meta name="PC text noop"
+.meta description="PC-only test.\nWrites NOPs over\nexisting code NOPs."
 
 entry_ptr:
 reloc0:
@@ -12,9 +12,10 @@ start:
 
   .versions 2OJW
 
-  .data     0x0068854E
+  .data     0x004E03DE
   .data     2
-  add      [eax], al
+  nop
+  nop
 
 
 
