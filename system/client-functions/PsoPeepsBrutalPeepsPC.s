@@ -48,7 +48,7 @@ next_candidate:
   jmp    scan_again
 
 found_table:
-  # esi = BattleParamEntry_on.dat base
+  # esi = matched Ultimate BattleParam block base
   mov    ecx, [ebx + 12]                      # patch entry count
   mov    edi, [ebx + 8]                       # signature_size
   lea    edi, [ebx + edi + 16]                # patch entries after header+signature
@@ -57,16 +57,27 @@ patch_again:
   test   ecx, ecx
   jz     done
 
-  mov    edx, [edi]                           # offset from table base
-  mov    al, [edi + 4]                        # byte value
-  mov    [esi + edx], al
+  mov    edx, [edi]                           # offset from matched block base
+  movzx  ebp, byte [edi + 4]                  # byte count
+  add    edi, 5                               # edi = source bytes
 
-  add    edi, 5
+copy_patch_bytes_again:
+  test   ebp, ebp
+  jz     patch_entry_done
+
+  mov    al, [edi]
+  mov    [esi + edx], al
+  inc    edi
+  inc    edx
+  dec    ebp
+  jmp    copy_patch_bytes_again
+
+patch_entry_done:
   dec    ecx
   jmp    patch_again
 
 done:
-  mov    eax, esi                             # return found table base
+  mov    eax, esi                             # return found block base
   jmp    return
 
 not_found:
@@ -82,12 +93,13 @@ return:
 get_data_ptr:
   call   get_data_ptr_ret
 
-# Server suffix starts here:
+# Server suffix:
 #   uint32_t scan_start
 #   uint32_t scan_end
 #   uint32_t signature_size
 #   uint32_t patch_entry_count
-#   signature bytes from table start
-#   repeated patch entries:
+#   signature bytes
+#   repeated compact patch entries:
 #     uint32_t offset
-#     uint8_t value
+#     uint8_t size
+#     uint8_t data[size]

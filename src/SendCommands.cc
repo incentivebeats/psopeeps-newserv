@@ -1115,6 +1115,14 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
       return static_cast<uint32_t>(scaled_f);
     };
 
+    auto append_patch_entry = [&](std::string& out, uint32_t offset, uint32_t value, uint8_t size) {
+      append_u32l(out, offset);
+      out.push_back(static_cast<char>(size));
+      for (uint8_t x = 0; x < size; x++) {
+        out.push_back(static_cast<char>((value >> (x * 8)) & 0xFF));
+      }
+    };
+
     constexpr uint32_t last_needed_offset =
         ultimate_block_offset + ((num_bp_rows - 1) * stats_row_size) + ultimate_exp_row_offset + 4;
     if (vanilla_data.size() < last_needed_offset) {
@@ -1140,12 +1148,7 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
       uint16_t old_atp = read_u16l(vanilla_data, atp_file_offset);
       uint16_t new_atp = scale_u16(old_atp, atp_mult);
 
-      append_u32l(suffix, atp_patch_offset);
-      suffix.push_back(static_cast<char>(new_atp & 0xFF));
-      patch_entry_count++;
-
-      append_u32l(suffix, atp_patch_offset + 1);
-      suffix.push_back(static_cast<char>((new_atp >> 8) & 0xFF));
+      append_patch_entry(suffix, atp_patch_offset, new_atp, 2);
       patch_entry_count++;
 
       const uint32_t hp_file_offset = row_file_offset + ultimate_hp_row_offset;
@@ -1153,12 +1156,7 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
       uint16_t old_hp = read_u16l(vanilla_data, hp_file_offset);
       uint16_t new_hp = scale_u16(old_hp, hp_mult);
 
-      append_u32l(suffix, hp_patch_offset);
-      suffix.push_back(static_cast<char>(new_hp & 0xFF));
-      patch_entry_count++;
-
-      append_u32l(suffix, hp_patch_offset + 1);
-      suffix.push_back(static_cast<char>((new_hp >> 8) & 0xFF));
+      append_patch_entry(suffix, hp_patch_offset, new_hp, 2);
       patch_entry_count++;
 
       const uint32_t exp_file_offset = row_file_offset + ultimate_exp_row_offset;
@@ -1166,11 +1164,8 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
       uint32_t old_exp = read_u32l(vanilla_data, exp_file_offset);
       uint32_t new_exp = scale_u32(old_exp, exp_mult);
 
-      for (uint32_t x = 0; x < 4; x++) {
-        append_u32l(suffix, exp_patch_offset + x);
-        suffix.push_back(static_cast<char>((new_exp >> (x * 8)) & 0xFF));
-        patch_entry_count++;
-      }
+      append_patch_entry(suffix, exp_patch_offset, new_exp, 4);
+      patch_entry_count++;
     }
 
     suffix[12] = static_cast<char>(patch_entry_count & 0xFF);
