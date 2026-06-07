@@ -1883,8 +1883,8 @@ void send_game_menu_t(std::shared_ptr<Client> c, bool is_spectator_team_list, bo
         default:
           throw std::logic_error("invalid game mode");
       }
-      // On v2, render name in orange if v1 is not allowed
-      if (is_v2(c->version()) && !l->version_is_allowed(Version::DC_V1)) {
+      // On v2, render name in orange if v1 is not allowed, or if this is a Brutal Peeps room.
+      if (is_v2(c->version()) && (!l->version_is_allowed(Version::DC_V1) || (l->brutal_peeps_tier >= 1))) {
         e.flags |= 0x40;
       }
       // On BB, gray out games that can't be joined
@@ -1892,7 +1892,12 @@ void send_game_menu_t(std::shared_ptr<Client> c, bool is_spectator_team_list, bo
         e.flags |= 0x04;
       }
     }
-    e.name.encode(l->name, c->language());
+
+    if ((c->version() == Version::BB_V4) && (l->brutal_peeps_tier >= 1)) {
+      e.name.encode("$C4" + l->name, c->language());
+    } else {
+      e.name.encode(l->name, c->language());
+    }
   }
 
   send_command_vt(c, is_spectator_team_list ? 0xE6 : 0x08, entries.size() - 1, entries);
