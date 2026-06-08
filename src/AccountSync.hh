@@ -10,7 +10,14 @@ namespace AccountSync {
 
 struct Config {
   bool enabled = false;
-  std::string region;
+
+  // Source identity. Region is no longer enough because account JSON is shared
+  // across live/test/hardcore in a region.
+  std::string source;
+  std::string source_region;
+  std::string source_ship;
+  std::string account_store = "shared";
+
   std::string coordinator_url;
   std::string shared_secret;
   uint64_t request_timeout_usecs = 3000000;

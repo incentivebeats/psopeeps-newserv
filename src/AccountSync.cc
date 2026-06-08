@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <mutex>
 #include <stdexcept>
@@ -22,6 +23,22 @@ static uint64_t now_usecs() {
 static Config get_config() {
   std::lock_guard<std::mutex> g(config_mutex);
   return current_config;
+}
+
+static std::string source_label(const Config& cfg) {
+  if (!cfg.source.empty()) {
+    return cfg.source;
+  }
+  if (!cfg.source_region.empty() && !cfg.source_ship.empty()) {
+    return cfg.source_region + "-" + cfg.source_ship;
+  }
+  if (!cfg.source_region.empty()) {
+    return cfg.source_region;
+  }
+  if (!cfg.source_ship.empty()) {
+    return cfg.source_ship;
+  }
+  return "unknown";
 }
 
 static std::string json_escape(const std::string& s) {
@@ -89,10 +106,13 @@ static void append_spool_line(const Config& cfg, const std::string& line) {
 
 static std::string base_event_json(const Config& cfg, const char* event, uint32_t account_id) {
   return std::format(
-      "{{\"timestamp_usecs\":{},\"source\":\"newserv\",\"event\":\"{}\",\"region\":\"{}\",\"account_id\":{},\"account_id_str\":\"{:010}\"",
+      "{{\"timestamp_usecs\":{},\"producer\":\"newserv\",\"source\":\"{}\",\"source_region\":\"{}\",\"source_ship\":\"{}\",\"account_store\":\"{}\",\"event\":\"{}\",\"account_id\":{},\"account_id_str\":\"{:010}\"",
       now_usecs(),
+      json_escape(source_label(cfg)),
+      json_escape(cfg.source_region),
+      json_escape(cfg.source_ship),
+      json_escape(cfg.account_store),
       json_escape(event),
-      json_escape(cfg.region),
       static_cast<unsigned int>(account_id),
       static_cast<unsigned int>(account_id));
 }
@@ -105,8 +125,11 @@ void configure(const Config& cfg) {
 
   if (cfg.enabled) {
     std::fprintf(stderr,
-        "[AccountSync] config enabled region=%s coordinator_url=%s notify_bb_sessions=%s spool_directory=%s login_locks=%s\n",
-        cfg.region.c_str(),
+        "[AccountSync] config enabled source=%s source_region=%s source_ship=%s account_store=%s coordinator_url=%s notify_bb_sessions=%s spool_directory=%s login_locks=%s\n",
+        source_label(cfg).c_str(),
+        cfg.source_region.c_str(),
+        cfg.source_ship.c_str(),
+        cfg.account_store.c_str(),
         cfg.coordinator_url.c_str(),
         cfg.notify_bb_sessions ? "true" : "false",
         cfg.spool_directory.c_str(),
@@ -117,7 +140,23 @@ void configure(const Config& cfg) {
 void configure_from_json(const phosg::JSON& json) {
   Config cfg;
   cfg.enabled = json.get_bool("Enabled", false);
-  cfg.region = json.get_string("Region", "");
+
+  const std::string legacy_region = json.get_string("Region", "");
+  cfg.source = json.get_string("Source", legacy_region);
+  cfg.source_region = json.get_string("SourceRegion", "");
+  cfg.source_ship = json.get_string("SourceShip", "");
+  cfg.account_store = json.get_string("AccountStore", "shared");
+
+  if (cfg.source_region.empty() && cfg.source_ship.empty() && !legacy_region.empty()) {
+    size_t dash_offset = legacy_region.find('-');
+    if (dash_offset != std::string::npos) {
+      cfg.source_region = legacy_region.substr(0, dash_offset);
+      cfg.source_ship = legacy_region.substr(dash_offset + 1);
+    } else {
+      cfg.source_region = legacy_region;
+    }
+  }
+
   cfg.coordinator_url = json.get_string("CoordinatorURL", "");
   cfg.shared_secret = json.get_string("SharedSecret", "");
   cfg.request_timeout_usecs = json.get_int("RequestTimeoutUsecs", 3000000);
@@ -126,11 +165,7 @@ void configure_from_json(const phosg::JSON& json) {
   cfg.notify_player_saves = json.get_bool("NotifyPlayerSaves", true);
   cfg.notify_backup_saves = json.get_bool("NotifyBackupSaves", true);
   cfg.enable_login_locks = json.get_bool("EnableLoginLocks", false);
-
-  // Backward-compatible during transition: old test configs with EnableLoginLocks=true
-  // still emit BB session events, but this does not enforce locks.
   cfg.notify_bb_sessions = json.get_bool("NotifyBBSessions", cfg.enable_login_locks);
-
   cfg.spool_directory = json.get_string("SpoolDirectory", "system/account-sync-spool");
   configure(cfg);
 }
@@ -142,8 +177,11 @@ void notify_account_saved(uint32_t account_id, const std::string& filename) {
   }
 
   std::fprintf(stderr,
-      "[AccountSync] event=account_saved region=%s account_id=%010u filename=%s\n",
-      cfg.region.c_str(),
+      "[AccountSync] event=account_saved source=%s source_region=%s source_ship=%s account_store=%s account_id=%010u filename=%s\n",
+      source_label(cfg).c_str(),
+      cfg.source_region.c_str(),
+      cfg.source_ship.c_str(),
+      cfg.account_store.c_str(),
       static_cast<unsigned int>(account_id),
       filename.c_str());
 
@@ -159,8 +197,11 @@ void notify_backup_saved(uint32_t account_id, size_t slot, const std::string& fi
   }
 
   std::fprintf(stderr,
-      "[AccountSync] event=backup_saved region=%s account_id=%010u slot=%zu filename=%s\n",
-      cfg.region.c_str(),
+      "[AccountSync] event=backup_saved source=%s source_region=%s source_ship=%s account_store=%s account_id=%010u slot=%zu filename=%s\n",
+      source_label(cfg).c_str(),
+      cfg.source_region.c_str(),
+      cfg.source_ship.c_str(),
+      cfg.account_store.c_str(),
       static_cast<unsigned int>(account_id),
       slot,
       filename.c_str());
@@ -181,8 +222,11 @@ void notify_player_state_saved(
   }
 
   std::fprintf(stderr,
-      "[AccountSync] event=player_state_saved region=%s reason=%s account_id=%010u bb_username=%s filename=%s\n",
-      cfg.region.c_str(),
+      "[AccountSync] event=player_state_saved source=%s source_region=%s source_ship=%s account_store=%s reason=%s account_id=%010u bb_username=%s filename=%s\n",
+      source_label(cfg).c_str(),
+      cfg.source_region.c_str(),
+      cfg.source_ship.c_str(),
+      cfg.account_store.c_str(),
       reason,
       static_cast<unsigned int>(account_id),
       bb_username.c_str(),
@@ -207,8 +251,11 @@ void notify_bb_login_start(
   }
 
   std::fprintf(stderr,
-      "[AccountSync] event=bb_login_start region=%s account_id=%010u bb_username=%s character_slot=%lld connection_phase=%u\n",
-      cfg.region.c_str(),
+      "[AccountSync] event=bb_login_start source=%s source_region=%s source_ship=%s account_store=%s account_id=%010u bb_username=%s character_slot=%lld connection_phase=%u\n",
+      source_label(cfg).c_str(),
+      cfg.source_region.c_str(),
+      cfg.source_ship.c_str(),
+      cfg.account_store.c_str(),
       static_cast<unsigned int>(account_id),
       bb_username.c_str(),
       static_cast<long long>(character_slot),
@@ -232,8 +279,11 @@ void notify_bb_login_end(
   }
 
   std::fprintf(stderr,
-      "[AccountSync] event=bb_login_end region=%s account_id=%010u bb_username=%s character_slot=%lld\n",
-      cfg.region.c_str(),
+      "[AccountSync] event=bb_login_end source=%s source_region=%s source_ship=%s account_store=%s account_id=%010u bb_username=%s character_slot=%lld\n",
+      source_label(cfg).c_str(),
+      cfg.source_region.c_str(),
+      cfg.source_ship.c_str(),
+      cfg.account_store.c_str(),
       static_cast<unsigned int>(account_id),
       bb_username.c_str(),
       static_cast<long long>(character_slot));
