@@ -2881,6 +2881,7 @@ static asio::awaitable<void> on_10_main_menu(std::shared_ptr<Client> c, uint32_t
     c->log.info_f("Brutal Peeps +{} selected from BB menu at level {}", tier, character_level);
 
     co_await send_auto_patches_if_needed(c);
+    co_await send_brutal_peeps_hp_patch_bb(c, tier);
     co_await enable_save_if_needed(c);
     send_lobby_list(c);
     if (!c->lobby.lock()) {
@@ -2896,6 +2897,7 @@ static asio::awaitable<void> on_10_main_menu(std::shared_ptr<Client> c, uint32_t
       if (!co_await enforce_bb_hardcore_client_integrity_probe(c)) {
         co_return;
       }
+      co_await send_brutal_peeps_hp_patch_bb(c, -1);
       co_await enable_save_if_needed(c);
       send_lobby_list(c);
       if (is_pre_v1(c->version())) {
@@ -3771,6 +3773,27 @@ static void on_joinable_quest_loaded(std::shared_ptr<Client> c) {
     leader_c->expected_game_state_sync_commands.emplace(0x6C00 | (c->lobby_client_id));
     leader_c->expected_game_state_sync_commands.emplace(0x6D00 | (c->lobby_client_id));
     leader_c->expected_game_state_sync_commands.emplace(0x6E00 | (c->lobby_client_id));
+    if (((c->version() == Version::BB_V4) || (c->version() == Version::PC_V2)) && l->is_game()) {
+      const int8_t room_brutal_peeps_tier = l->brutal_peeps_tier;
+      const int8_t client_brutal_peeps_tier = c->selected_brutal_peeps_tier;
+
+      if ((room_brutal_peeps_tier >= 1) && (client_brutal_peeps_tier != room_brutal_peeps_tier)) {
+        send_message_box(c, std::format(
+            "$C6Must have Brutal Peeps +{} selected\nto join this room.\n\n"
+            "$C7Use Transfer Ship and select\nBrutal Peeps +{} first.",
+            static_cast<int>(room_brutal_peeps_tier),
+            static_cast<int>(room_brutal_peeps_tier)));
+        return;
+      }
+
+      if ((room_brutal_peeps_tier < 1) && (client_brutal_peeps_tier >= 1)) {
+        send_message_box(c,
+            "$C6Disable Brutal Peeps before\njoining a normal room.\n\n"
+            "$C7Use Transfer Ship and select\nGo to lobby first.");
+        return;
+      }
+    }
+
     c->log.info_f("Creating game join command queue");
     c->game_join_command_queue = std::make_unique<std::deque<Client::JoinCommand>>();
   } else {
@@ -6291,9 +6314,11 @@ static asio::awaitable<void> on_6F(std::shared_ptr<Client> c, Channel::Message& 
 
   // Episode 3 sends a 6F after a CAx21 (end battle) command, so we shouldn't reassign the item IDs again in that case
   // (even though item IDs really don't matter for Ep3)
+  bool loading_flag_cleared = false;
   if (c->check_flag(Client::Flag::LOADING)) {
     c->clear_flag(Client::Flag::LOADING);
     c->log.info_f("LOADING flag cleared");
+    loading_flag_cleared = true;
 
     // The client sends 6F when it has created its TObjPlayer and assigned its item IDs. For the leader, however, this
     // happens before any inbound commands are processed, so we already did it when the client was added to the lobby.
@@ -6301,6 +6326,11 @@ static asio::awaitable<void> on_6F(std::shared_ptr<Client> c, Channel::Message& 
     if ((msg.command == 0x006F) && (c->lobby_client_id != l->leader_id)) {
       l->assign_inventory_and_bank_item_ids(c, true);
     }
+  }
+
+  if (loading_flag_cleared && (c->version() == Version::BB_V4)) {
+    int64_t brutal_peeps_hp_patch_tier = (l->brutal_peeps_tier >= 1) ? l->brutal_peeps_tier : -1;
+    co_await send_brutal_peeps_hp_patch_bb(c, brutal_peeps_hp_patch_tier);
   }
 
   // DC NTE creates players in the invisible state by default; if the joiner is not DC NTE, it won't send 6x23 to make
