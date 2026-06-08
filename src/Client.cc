@@ -15,6 +15,7 @@
 #include "SendCommands.hh"
 #include "Server.hh"
 #include "Version.hh"
+#include "AccountSync.hh"
 
 const uint64_t CLIENT_CONFIG_MAGIC = 0x8399AC32;
 
@@ -503,6 +504,13 @@ void Client::save_system_file() const {
   std::string filename = this->system_filename();
   phosg::save_object_file(filename, *this->system_data);
   this->log.info_f("Saved system file {}", filename);
+  if (this->login && this->login->account && this->login->bb_license) {
+    AccountSync::notify_player_state_saved(
+        "system_saved",
+        this->login->account->account_id,
+        this->login->bb_license->username,
+        filename);
+  }
 }
 
 // Guild Card file
@@ -542,6 +550,13 @@ void Client::save_guild_card_file() const {
   std::string filename = this->guild_card_filename();
   phosg::save_object_file(filename, *this->guild_card_data);
   this->log.info_f("Saved Guild Card file {}", filename);
+  if (this->login && this->login->account && this->login->bb_license) {
+    AccountSync::notify_player_state_saved(
+        "guild_card_saved",
+        this->login->account->account_id,
+        this->login->bb_license->username,
+        filename);
+  }
 }
 
 // Character file
@@ -634,6 +649,13 @@ void Client::save_character_file() {
   auto filename = this->character_filename();
   this->save_character_file(filename, this->system_data, this->character_data);
   this->log.info_f("Saved character file {}", filename);
+  if (this->login && this->login->account && this->login->bb_license) {
+    AccountSync::notify_player_state_saved(
+        "character_saved",
+        this->login->account->account_id,
+        this->login->bb_license->username,
+        filename);
+  }
 }
 
 void Client::create_character_file(
@@ -834,6 +856,13 @@ void Client::save_bank_file() const {
   auto filename = this->bank_filename();
   this->save_bank_file(filename, *this->bank_data);
   this->log.info_f("Saved bank file {}", filename);
+  if (this->login && this->login->account && this->login->bb_license) {
+    AccountSync::notify_player_state_saved(
+        "bank_saved",
+        this->login->account->account_id,
+        this->login->bb_license->username,
+        filename);
+  }
 }
 
 void Client::change_bank(ssize_t index) {
