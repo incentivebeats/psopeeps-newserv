@@ -22,6 +22,7 @@
 #include "Server.hh"
 #include "StaticGameData.hh"
 #include "Text.hh"
+#include "AccountSync.hh"
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Tools
@@ -491,12 +492,22 @@ static asio::awaitable<void> server_command_bbchar_savechar(const Args& a, bool 
       ? Client::character_filename(dest_bb_license->username, dest_character_index)
       : Client::backup_character_filename(dest_account->account_id, dest_character_index, is_ep3(a.c->version()));
 
+  auto log_account_sync_backup_saved = [&]() -> void {
+    if (!is_bb_conversion) {
+      AccountSync::notify_backup_saved(
+          dest_account->account_id,
+          dest_character_index,
+          filename);
+    }
+  };
+
   if (ch.is_full_info) {
     // Client sent 30; ch contains the verbatim save file from the client
     if (ch.ep3_character) {
       try {
         Client::save_ep3_character_file(filename, *ch.ep3_character);
         send_text_message(a.c, "$C7Character data saved\n(full save file)");
+        log_account_sync_backup_saved();
       } catch (const std::exception& e) {
         send_text_message_fmt(a.c, "$C6Character data could\nnot be saved:\n{}", e.what());
       }
@@ -505,6 +516,7 @@ static asio::awaitable<void> server_command_bbchar_savechar(const Args& a, bool 
       try {
         Client::save_character_file(filename, a.c->system_file(), ch.character);
         send_text_message(a.c, "$C7Character data saved\n(full save file)");
+        log_account_sync_backup_saved();
       } catch (const std::exception& e) {
         send_text_message_fmt(a.c, "$C6Character data could\nnot be saved:\n{}", e.what());
       }
@@ -546,6 +558,7 @@ static asio::awaitable<void> server_command_bbchar_savechar(const Args& a, bool 
       try {
         Client::save_character_file(filename, a.c->system_file(), bb_player);
         send_text_message(a.c, "$C7Character data saved\n(basic only)");
+        log_account_sync_backup_saved();
       } catch (const std::exception& e) {
         send_text_message_fmt(a.c, "$C6Character data could\nnot be saved:\n{}", e.what());
       }
