@@ -18,7 +18,9 @@ struct Config {
   bool notify_account_saves = true;
   bool notify_player_saves = true;
   bool notify_backup_saves = true;
-  bool enable_login_locks = false;
+  bool notify_bb_sessions = false;
+  bool enable_login_locks = false; // Reserved for future blocking lock behavior
+  std::string spool_directory = "system/account-sync-spool";
 };
 
 void configure(const Config& cfg);
