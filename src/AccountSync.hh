@@ -35,4 +35,17 @@ inline void notify_player_state_saved(
       filename.c_str());
 }
 
+inline void notify_bb_login_start(
+    uint32_t account_id,
+    const std::string& bb_username,
+    int64_t character_slot,
+    uint8_t connection_phase) {
+  std::fprintf(stderr,
+      "[AccountSync] event=bb_login_start account_id=%010u bb_username=%s character_slot=%lld connection_phase=%u\n",
+      static_cast<unsigned int>(account_id),
+      bb_username.c_str(),
+      static_cast<long long>(character_slot),
+      static_cast<unsigned int>(connection_phase));
+}
+
 } // namespace AccountSync
