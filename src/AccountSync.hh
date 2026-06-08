@@ -48,4 +48,15 @@ inline void notify_bb_login_start(
       static_cast<unsigned int>(connection_phase));
 }
 
+inline void notify_bb_login_end(
+    uint32_t account_id,
+    const std::string& bb_username,
+    int64_t character_slot) {
+  std::fprintf(stderr,
+      "[AccountSync] event=bb_login_end account_id=%010u bb_username=%s character_slot=%lld\n",
+      static_cast<unsigned int>(account_id),
+      bb_username.c_str(),
+      static_cast<long long>(character_slot));
+}
+
 } // namespace AccountSync

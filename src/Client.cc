@@ -234,6 +234,13 @@ Client::~Client() {
 
   if ((this->version() == Version::BB_V4) && (this->character_data.get())) {
     this->save_all();
+
+    if (this->login && this->login->account && this->login->bb_license) {
+      AccountSync::notify_bb_login_end(
+          this->login->account->account_id,
+          this->login->bb_license->username,
+          this->bb_character_index);
+    }
   }
   this->log.info_f("Deleted");
 }
