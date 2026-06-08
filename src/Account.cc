@@ -9,6 +9,7 @@
 #include <phosg/Time.hh>
 
 #include "Account.hh"
+#include "AccountSync.hh"
 
 std::shared_ptr<DCNTELicense> DCNTELicense::from_json(const phosg::JSON& json) {
   auto ret = std::make_shared<DCNTELicense>();
@@ -400,6 +401,8 @@ void Account::save() const {
         phosg::JSON::SerializeOption::FORMAT | phosg::JSON::SerializeOption::HEX_INTEGERS);
     std::string filename = std::format("system/licenses/{:010}.json", this->account_id);
     phosg::save_file(filename, json_data);
+
+    AccountSync::notify_account_saved(this->account_id, filename);
   }
 }
 
