@@ -2771,7 +2771,9 @@ static asio::awaitable<void> on_10_main_menu(std::shared_ptr<Client> c, uint32_t
 
     co_await send_auto_patches_if_needed(c);
     if (c->version() == Version::BB_V4) {
-      co_await send_brutal_peeps_hp_patch_bb(c, tier);
+      // BB must patch all online BattleParam files before room creation/area load.
+      // PC V2 uses the delayed area-load retry path instead.
+      co_await send_brutal_peeps_hp_patch_bb(c, tier, true);
     }
     co_await enable_save_if_needed(c);
     send_lobby_list(c);
@@ -2785,7 +2787,11 @@ static asio::awaitable<void> on_10_main_menu(std::shared_ptr<Client> c, uint32_t
     case MainMenuItemID::GO_TO_LOBBY: {
       c->selected_brutal_peeps_tier = -1;
       co_await send_auto_patches_if_needed(c);
-      co_await send_brutal_peeps_hp_patch_bb(c, -1);
+      if (c->version() == Version::BB_V4) {
+        co_await send_brutal_peeps_hp_patch_bb(c, -1, true);
+      } else if (c->version() == Version::PC_V2) {
+        co_await send_brutal_peeps_hp_patch_bb(c, -1);
+      }
       co_await enable_save_if_needed(c);
       send_lobby_list(c);
       if (is_pre_v1(c->version())) {
@@ -3664,6 +3670,27 @@ static void on_joinable_quest_loaded(std::shared_ptr<Client> c) {
     leader_c->expected_game_state_sync_commands.emplace(0x6C00 | (c->lobby_client_id));
     leader_c->expected_game_state_sync_commands.emplace(0x6D00 | (c->lobby_client_id));
     leader_c->expected_game_state_sync_commands.emplace(0x6E00 | (c->lobby_client_id));
+    if (((c->version() == Version::BB_V4) || (c->version() == Version::PC_V2)) && l->is_game()) {
+      const int8_t room_brutal_peeps_tier = l->brutal_peeps_tier;
+      const int8_t client_brutal_peeps_tier = c->selected_brutal_peeps_tier;
+
+      if ((room_brutal_peeps_tier >= 1) && (client_brutal_peeps_tier != room_brutal_peeps_tier)) {
+        send_message_box(c, std::format(
+            "$C6Must have Brutal Peeps +{} selected\nto join this room.\n\n"
+            "$C7Use Transfer Ship and select\nBrutal Peeps +{} first.",
+            static_cast<int>(room_brutal_peeps_tier),
+            static_cast<int>(room_brutal_peeps_tier)));
+        return;
+      }
+
+      if ((room_brutal_peeps_tier < 1) && (client_brutal_peeps_tier >= 1)) {
+        send_message_box(c,
+            "$C6Disable Brutal Peeps before\njoining a normal room.\n\n"
+            "$C7Use Transfer Ship and select\nGo to lobby first.");
+        return;
+      }
+    }
+
     c->log.info_f("Creating game join command queue");
     c->game_join_command_queue = std::make_unique<std::deque<Client::JoinCommand>>();
   } else {

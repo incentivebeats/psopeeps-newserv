@@ -618,6 +618,14 @@ Lobby::JoinError Lobby::join_error_for_client(std::shared_ptr<Client> c, const s
     return JoinError::VERSION_CONFLICT;
   }
   if (this->is_game()) {
+    // Brutal Peeps rooms rely on version-specific BattleParam patching.
+    // BB Brutal rooms are BB-only; PC Brutal rooms are PC V2-only.
+    if ((this->brutal_peeps_tier >= 1) &&
+        ((this->version_is_allowed(Version::BB_V4) && (c->version() != Version::BB_V4)) ||
+            (this->version_is_allowed(Version::PC_V2) && (c->version() != Version::PC_V2)))) {
+      return JoinError::VERSION_CONFLICT;
+    }
+
     if (this->check_flag(Flag::QUEST_SELECTION_IN_PROGRESS)) {
       return JoinError::QUEST_SELECTION_IN_PROGRESS;
     }

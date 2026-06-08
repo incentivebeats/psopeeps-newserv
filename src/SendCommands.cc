@@ -777,7 +777,8 @@ static std::string bb_stream_file_data_for_client(std::shared_ptr<Client> c) {
 
 static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> send_brutal_peeps_hp_patch_bb_now(
     std::shared_ptr<Client> c,
-    int64_t tier) {
+    int64_t tier,
+    bool force_all_tables) {
   std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> promises;
 
   if (c->version() != Version::BB_V4) {
@@ -831,25 +832,28 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
     }();
 
     std::vector<std::string> bp_filenames;
-    auto l = c->lobby.lock();
-    if (l && l->is_game()) {
-      switch (l->episode) {
-        case Episode::EP1:
-          bp_filenames.emplace_back("BattleParamEntry_on.dat");
-          break;
-        case Episode::EP2:
-          bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
-          break;
-        case Episode::EP4:
-          bp_filenames.emplace_back("BattleParamEntry_ep4_on.dat");
-          break;
-        default:
-          break;
+
+    if (!force_all_tables) {
+      auto l = c->lobby.lock();
+      if (l && l->is_game()) {
+        switch (l->episode) {
+          case Episode::EP1:
+            bp_filenames.emplace_back("BattleParamEntry_on.dat");
+            break;
+          case Episode::EP2:
+            bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
+            break;
+          case Episode::EP4:
+            bp_filenames.emplace_back("BattleParamEntry_ep4_on.dat");
+            break;
+          default:
+            break;
+        }
       }
     }
 
-    // Before the room exists, we don't know which episode the player will pick.
-    // Patch all online BB BattleParam tables so EP2/EP4 HP is already scaled before enemies initialize.
+    // Before the room exists, or when explicitly requested from the BB ship-menu path,
+    // patch all online BB BattleParam tables before enemies initialize.
     if (bp_filenames.empty()) {
       bp_filenames.emplace_back("BattleParamEntry_on.dat");
       bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
@@ -1251,7 +1255,7 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
 }
 
 
-asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, int64_t tier) {
+asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, int64_t tier, bool force_all_tables) {
   try {
     co_await prepare_client_for_patches(c);
 
@@ -1261,7 +1265,7 @@ asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, i
     for (size_t attempt = 1; attempt <= max_attempts; attempt++) {
       auto promises = is_pc_bp_patch
           ? send_brutal_peeps_hp_patch_pc_now(c, tier)
-          : send_brutal_peeps_hp_patch_bb_now(c, tier);
+          : send_brutal_peeps_hp_patch_bb_now(c, tier, force_all_tables);
 
       bool any_zero_return = false;
       bool any_success = false;
@@ -2120,6 +2124,13 @@ void send_game_menu_t(std::shared_ptr<Client> c, bool is_spectator_team_list, bo
         (client_has_debug || (l->check_flag(Lobby::Flag::IS_CLIENT_CUSTOMIZATION) == c->check_flag(Client::Flag::IS_CLIENT_CUSTOMIZATION))) &&
         (l->check_flag(Lobby::Flag::IS_SPECTATOR_TEAM) == is_spectator_team_list) &&
         (!show_tournaments_only || l->tournament_match)) {
+      // Brutal Peeps rooms rely on version-specific BattleParam patching.
+      // BB Brutal rooms are BB-only; PC Brutal rooms are PC V2-only.
+      if ((l->brutal_peeps_tier >= 1) &&
+          ((l->version_is_allowed(Version::BB_V4) && (c->version() != Version::BB_V4)) ||
+              (l->version_is_allowed(Version::PC_V2) && (c->version() != Version::PC_V2)))) {
+        continue;
+      }
       games.emplace(l);
     }
   }
@@ -2178,8 +2189,8 @@ void send_game_menu_t(std::shared_ptr<Client> c, bool is_spectator_team_list, bo
         default:
           throw std::logic_error("invalid game mode");
       }
-      // On v2, render name in orange if v1 is not allowed
-      if (is_v2(c->version()) && !l->version_is_allowed(Version::DC_V1)) {
+      // On v2, render name in orange if v1 is not allowed, or if this is a Brutal Peeps room.
+      if (is_v2(c->version()) && (!l->version_is_allowed(Version::DC_V1) || (l->brutal_peeps_tier >= 1))) {
         e.flags |= 0x40;
       }
       // On BB, gray out games that can't be joined
@@ -2187,7 +2198,12 @@ void send_game_menu_t(std::shared_ptr<Client> c, bool is_spectator_team_list, bo
         e.flags |= 0x04;
       }
     }
-    e.name.encode(l->name, c->language());
+
+    if ((c->version() == Version::BB_V4) && (l->brutal_peeps_tier >= 1)) {
+      e.name.encode(std::format("B+{} {}", static_cast<int>(l->brutal_peeps_tier), l->name), c->language());
+    } else {
+      e.name.encode(l->name, c->language());
+    }
   }
 
   send_command_vt(c, is_spectator_team_list ? 0xE6 : 0x08, entries.size() - 1, entries);
