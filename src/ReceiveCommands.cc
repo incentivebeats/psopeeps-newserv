@@ -30,6 +30,7 @@
 #include "Text.hh"
 #include <ctime>
 #include "BrutalPeeps.hh"
+#include "AccountSync.hh"
 
 const char* BATTLE_TABLE_DISCONNECT_HOOK_NAME = "battle_table_state";
 const char* QUEST_BARRIER_DISCONNECT_HOOK_NAME = "quest_barrier";
@@ -1781,6 +1782,14 @@ static asio::awaitable<void> on_93_BB(std::shared_ptr<Client> c, Channel::Messag
   if (!c->login) {
     c->channel->disconnect();
     co_return;
+  }
+
+  if (c->login->account && c->login->bb_license) {
+    AccountSync::notify_bb_login_start(
+        c->login->account->account_id,
+        c->login->bb_license->username,
+        c->bb_character_index,
+        c->bb_connection_phase);
   }
 
   std::string version_string = c->bb_client_config.as_string();
