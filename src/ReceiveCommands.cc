@@ -803,7 +803,13 @@ static asio::awaitable<void> on_04_U(std::shared_ptr<Client> c, Channel::Message
   // - Username and password: call verify_bb
   uint8_t result_code = 0x00;
   auto s = c->require_server_state();
-  if (!c->username.empty() && !c->password.empty()) {
+
+  // BB patch login can validate BB username/password here.
+  // PC patch login must not be treated as BB auth; PC V2 serial/access-key
+  // enforcement happens later in the game login path via from_pc_credentials.
+  const bool is_bb_patch_login = (c->version() == Version::BB_PATCH);
+
+  if (is_bb_patch_login && !c->username.empty() && !c->password.empty()) {
     try {
       s->account_index->from_bb_credentials(c->username, &c->password, false);
     } catch (const AccountIndex::incorrect_password& e) {
@@ -813,7 +819,7 @@ static asio::awaitable<void> on_04_U(std::shared_ptr<Client> c, Channel::Message
         result_code = 0x08;
       }
     }
-  } else if (!c->username.empty() && !s->allow_unregistered_users) {
+  } else if (is_bb_patch_login && !c->username.empty() && !s->allow_unregistered_users) {
     try {
       s->account_index->from_bb_credentials(c->username, nullptr, false);
     } catch (const AccountIndex::missing_account& e) {
