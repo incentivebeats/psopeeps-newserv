@@ -1,7 +1,9 @@
 #include "HTTPServer.hh"
 
+#include <ctype.h>
 #include <inttypes.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include <phosg/Network.hh>
 #include <string>
@@ -28,6 +30,94 @@ HTTPServer::HTTPServer(std::shared_ptr<ServerState> state)
         {"BuildTimeStr", phosg::format_time(BUILD_TIMESTAMP)},
         {"Revision", GIT_REVISION_HASH},
     });
+  };
+
+  auto parse_u32_string = [](const std::string& value_str, int base, const char* field_name) -> uint32_t {
+    if (value_str.empty()) {
+      throw HTTPError(400, std::format("{} is required", field_name));
+    }
+
+    size_t conversion_end = 0;
+    uint64_t value = 0;
+    try {
+      value = std::stoull(value_str, &conversion_end, base);
+    } catch (const std::exception&) {
+      throw HTTPError(400, std::format("Invalid {}", field_name));
+    }
+
+    if (conversion_end != value_str.size()) {
+      throw HTTPError(400, std::format("Invalid {}", field_name));
+    }
+    if (value > 0xFFFFFFFFULL) {
+      throw HTTPError(400, std::format("{} out of range", field_name));
+    }
+    return value;
+  };
+
+  auto parse_u32_decimal_or_0x = [parse_u32_string](const std::string& value_str, const char* field_name) -> uint32_t {
+    int base = 10;
+    if ((value_str.size() >= 2) &&
+        (value_str[0] == '0') &&
+        ((value_str[1] == 'x') || (value_str[1] == 'X'))) {
+      base = 16;
+    }
+    return parse_u32_string(value_str, base, field_name);
+  };
+
+  auto parse_account_id = [parse_u32_decimal_or_0x](const std::string& account_id_str) -> uint32_t {
+    return parse_u32_decimal_or_0x(account_id_str, "account ID");
+  };
+
+  auto require_nonzero_u32 = [](uint32_t value, const char* field_name) -> uint32_t {
+    if (value == 0) {
+      throw HTTPError(400, std::format("{} is zero", field_name));
+    }
+    return value;
+  };
+
+  auto require_string_length = [](const std::string& value, const char* field_name, size_t min_size, size_t max_size) -> void {
+    if (value.size() < min_size) {
+      throw HTTPError(400, std::format("{} is too short", field_name));
+    }
+    if (value.size() > max_size) {
+      throw HTTPError(400, std::format("{} is too long", field_name));
+    }
+  };
+
+  auto require_exact_string_length = [](const std::string& value, const char* field_name, size_t expected_size) -> void {
+    if (value.size() != expected_size) {
+      throw HTTPError(400, std::format("{} length is incorrect", field_name));
+    }
+  };
+
+  auto normalize_license_type = [](std::string type_str) -> std::string {
+    for (char& ch : type_str) {
+      ch = static_cast<char>(toupper(static_cast<unsigned char>(ch)));
+    }
+    return type_str;
+  };
+
+  auto require_account_admin_secret = [this](const HTTPRequest& req) -> void {
+    const auto& account_sync_config = this->state->config_json->get("AccountSync", phosg::JSON::dict());
+    std::string shared_secret = account_sync_config.get_string("SharedSecret", "");
+    if (shared_secret.empty()) {
+      throw HTTPError(403, "Account admin mutations are disabled");
+    }
+
+    const std::string* header_secret = req.get_header("x-psopeeps-admin-secret");
+    if (!header_secret || (*header_secret != shared_secret)) {
+      throw HTTPError(403, "Forbidden");
+    }
+  };
+
+  auto account_mutation_response = [](const char* action, std::shared_ptr<Account> account) -> std::shared_ptr<phosg::JSON> {
+    return std::make_shared<phosg::JSON>(phosg::JSON::dict({
+        {"OK", true},
+        {"Action", action},
+        {"AccountID", account->account_id},
+        {"AccountIDDecimal", std::format("{:010}", account->account_id)},
+        {"AccountIDHex", std::format("{:08X}", account->account_id)},
+    }));
   };
 
   this->router.add(HTTPRequest::Method::GET, "/", [generate_server_version_json](ArgsT&&) -> RetT {
@@ -661,12 +751,206 @@ HTTPServer::HTTPServer(std::shared_ptr<ServerState> state)
     co_return res;
   });
 
-  this->router.add(HTTPRequest::Method::GET, "/y/account/:account_id", [this](ArgsT&& args) -> RetT {
-    uint32_t account_id = args.get_param<uint32_t>("account_id");
+  this->router.add(HTTPRequest::Method::GET, "/y/account/:account_id", [this, parse_account_id](ArgsT&& args) -> RetT {
+    uint32_t account_id = parse_account_id(args.params.at("account_id"));
     try {
       co_return std::make_shared<phosg::JSON>(this->state->account_index->from_account_id(account_id)->json());
     } catch (const AccountIndex::missing_account&) {
       throw HTTPError(404, "Account does not exist");
+    }
+  });
+
+  this->router.add(HTTPRequest::Method::POST, "/y/account/:account_id/ensure",
+      [this, parse_account_id, parse_u32_decimal_or_0x, require_string_length, require_account_admin_secret, account_mutation_response](ArgsT&& args) -> RetT {
+    require_account_admin_secret(args.req);
+    uint32_t account_id = parse_account_id(args.params.at("account_id"));
+
+    try {
+      std::shared_ptr<Account> account;
+      try {
+        account = this->state->account_index->from_account_id(account_id);
+      } catch (const AccountIndex::missing_account&) {
+        account = std::make_shared<Account>();
+        account->account_id = account_id;
+        account->flags = parse_u32_decimal_or_0x(args.post_data.get_string("flags", "0"), "flags");
+        account->user_flags = parse_u32_decimal_or_0x(args.post_data.get_string("user_flags", "0"), "user_flags");
+        this->state->account_index->add(account);
+      }
+
+      std::string bb_username = args.post_data.get_string("bb_username", "");
+      if (!bb_username.empty()) {
+        auto license = std::make_shared<BBLicense>();
+        license->username = std::move(bb_username);
+        license->password = args.post_data.get_string("bb_password", "");
+        require_string_length(license->username, "bb_username", 1, 16);
+        require_string_length(license->password, "bb_password", 1, 16);
+
+        auto existing_it = account->bb_licenses.find(license->username);
+        if (existing_it != account->bb_licenses.end()) {
+          if (existing_it->second->password != license->password) {
+            throw HTTPError(409, "BB license already exists on account with different password");
+          }
+        } else {
+          this->state->account_index->add_bb_license(account, license);
+        }
+      }
+
+      account->save();
+      co_return account_mutation_response("ensure-account", account);
+
+    } catch (const HTTPError&) {
+      throw;
+    } catch (const std::runtime_error& e) {
+      if (!strcmp(e.what(), "username already registered")) {
+        throw HTTPError(409, e.what());
+      }
+      throw HTTPError(400, e.what());
+    } catch (const std::exception& e) {
+      throw HTTPError(400, e.what());
+    }
+  });
+
+  this->router.add(HTTPRequest::Method::POST, "/y/account/:account_id/add-license",
+      [this, parse_account_id, parse_u32_string, require_nonzero_u32, require_string_length, require_exact_string_length, normalize_license_type, require_account_admin_secret, account_mutation_response](ArgsT&& args) -> RetT {
+    require_account_admin_secret(args.req);
+    uint32_t account_id = parse_account_id(args.params.at("account_id"));
+
+    try {
+      auto account = this->state->account_index->from_account_id(account_id);
+      std::string type_str = normalize_license_type(args.post_data.get_string("type"));
+
+      if (type_str == "DC") {
+        auto license = std::make_shared<V1V2License>();
+        license->serial_number = require_nonzero_u32(parse_u32_string(args.post_data.get_string("serial_number"), 16, "serial_number"), "serial_number");
+        license->access_key = args.post_data.get_string("access_key");
+        require_exact_string_length(license->access_key, "access_key", 8);
+        auto existing_it = account->dc_licenses.find(license->serial_number);
+        if (existing_it != account->dc_licenses.end()) {
+          if (existing_it->second->access_key != license->access_key) {
+            throw HTTPError(409, "DC license already exists on account with different access key");
+          }
+          co_return account_mutation_response("add-license", account);
+        }
+        this->state->account_index->add_dc_license(account, license);
+
+      } else if (type_str == "PC") {
+        auto license = std::make_shared<V1V2License>();
+        license->serial_number = require_nonzero_u32(parse_u32_string(args.post_data.get_string("serial_number"), 16, "serial_number"), "serial_number");
+        license->access_key = args.post_data.get_string("access_key");
+        require_exact_string_length(license->access_key, "access_key", 8);
+        auto existing_it = account->pc_licenses.find(license->serial_number);
+        if (existing_it != account->pc_licenses.end()) {
+          if (existing_it->second->access_key != license->access_key) {
+            throw HTTPError(409, "PC license already exists on account with different access key");
+          }
+          co_return account_mutation_response("add-license", account);
+        }
+        this->state->account_index->add_pc_license(account, license);
+
+      } else if (type_str == "GC") {
+        auto license = std::make_shared<GCLicense>();
+        license->serial_number = require_nonzero_u32(parse_u32_string(args.post_data.get_string("serial_number"), 10, "serial_number"), "serial_number");
+        license->access_key = args.post_data.get_string("access_key");
+        license->password = args.post_data.get_string("password");
+        require_exact_string_length(license->access_key, "access_key", 12);
+        require_string_length(license->password, "password", 1, 8);
+        auto existing_it = account->gc_licenses.find(license->serial_number);
+        if (existing_it != account->gc_licenses.end()) {
+          if ((existing_it->second->access_key != license->access_key) ||
+              (existing_it->second->password != license->password)) {
+            throw HTTPError(409, "GC license already exists on account with different credentials");
+          }
+          co_return account_mutation_response("add-license", account);
+        }
+        this->state->account_index->add_gc_license(account, license);
+
+      } else if (type_str == "BB") {
+        auto license = std::make_shared<BBLicense>();
+        license->username = args.post_data.get_string("username");
+        license->password = args.post_data.get_string("password", "");
+        require_string_length(license->username, "username", 1, 16);
+        require_string_length(license->password, "password", 1, 16);
+        auto existing_it = account->bb_licenses.find(license->username);
+        if (existing_it != account->bb_licenses.end()) {
+          if (existing_it->second->password != license->password) {
+            throw HTTPError(409, "BB license already exists on account with different password");
+          }
+          co_return account_mutation_response("add-license", account);
+        }
+        this->state->account_index->add_bb_license(account, license);
+
+      } else {
+        throw HTTPError(400, "Invalid license type");
+      }
+
+      account->save();
+      co_return account_mutation_response("add-license", account);
+
+    } catch (const AccountIndex::missing_account&) {
+      throw HTTPError(404, "Account does not exist");
+    } catch (const HTTPError&) {
+      throw;
+    } catch (const std::runtime_error& e) {
+      if (!strcmp(e.what(), "serial number already registered") ||
+          !strcmp(e.what(), "username already registered")) {
+        throw HTTPError(409, e.what());
+      }
+      throw HTTPError(400, e.what());
+    } catch (const std::exception& e) {
+      throw HTTPError(400, e.what());
+    }
+  });
+
+  this->router.add(HTTPRequest::Method::POST, "/y/account/:account_id/delete-license",
+      [this, parse_account_id, parse_u32_string, normalize_license_type, require_account_admin_secret, account_mutation_response](ArgsT&& args) -> RetT {
+    require_account_admin_secret(args.req);
+    uint32_t account_id = parse_account_id(args.params.at("account_id"));
+
+    try {
+      auto account = this->state->account_index->from_account_id(account_id);
+      std::string type_str = normalize_license_type(args.post_data.get_string("type"));
+
+      if (type_str == "DC") {
+        uint32_t serial_number = parse_u32_string(args.post_data.get_string("serial_number"), 16, "serial_number");
+        if (account->dc_licenses.find(serial_number) == account->dc_licenses.end()) {
+          co_return account_mutation_response("delete-license", account);
+        }
+        this->state->account_index->remove_dc_license(account, serial_number);
+
+      } else if (type_str == "PC") {
+        uint32_t serial_number = parse_u32_string(args.post_data.get_string("serial_number"), 16, "serial_number");
+        if (account->pc_licenses.find(serial_number) == account->pc_licenses.end()) {
+          co_return account_mutation_response("delete-license", account);
+        }
+        this->state->account_index->remove_pc_license(account, serial_number);
+
+      } else if (type_str == "GC") {
+        uint32_t serial_number = parse_u32_string(args.post_data.get_string("serial_number"), 10, "serial_number");
+        if (account->gc_licenses.find(serial_number) == account->gc_licenses.end()) {
+          co_return account_mutation_response("delete-license", account);
+        }
+        this->state->account_index->remove_gc_license(account, serial_number);
+
+      } else if (type_str == "BB") {
+        std::string username = args.post_data.get_string("username");
+        if (account->bb_licenses.find(username) == account->bb_licenses.end()) {
+          co_return account_mutation_response("delete-license", account);
+        }
+        this->state->account_index->remove_bb_license(account, username);
+
+      } else {
+        throw HTTPError(400, "Invalid license type");
+      }
+
+      account->save();
+      co_return account_mutation_response("delete-license", account);
+
+    } catch (const AccountIndex::missing_account&) {
+      throw HTTPError(404, "Account does not exist");
+    } catch (const HTTPError&) {
+      throw;
+    } catch (const std::exception& e) {
+      throw HTTPError(400, e.what());
     }
   });
 
