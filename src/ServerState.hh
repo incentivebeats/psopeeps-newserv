@@ -130,6 +130,7 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   bool allow_pc_nte = false;
   bool use_temp_accounts_for_prototypes = true;
   bool allow_same_account_concurrent_logins = true;
+  bool allow_same_account_concurrent_logins_across_client_sources = false;
   std::array<uint16_t, NUM_VERSIONS> compatibility_groups = {};
   bool enable_chat_commands = true;
   char chat_command_sentinel = '\0'; // 0 = default (@ on 11/2000; $ on all other versions)
@@ -319,6 +320,7 @@ struct ServerState : public std::enable_shared_from_this<ServerState> {
   int32_t ep3_menu_song = -1;
 
   std::unordered_map<uint32_t, std::shared_ptr<Client>> client_for_account;
+  std::unordered_map<uint64_t, std::shared_ptr<Client>> client_for_account_source;
 
   std::map<std::string, uint32_t> all_addresses;
   uint32_t local_address = 0;

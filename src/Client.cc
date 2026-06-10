@@ -21,6 +21,43 @@ const uint64_t CLIENT_CONFIG_MAGIC = 0x8399AC32;
 
 static std::atomic<uint64_t> next_client_id(1);
 
+
+static uint8_t account_client_source_for_version(Version v) {
+  switch (v) {
+    case Version::DC_NTE:
+    case Version::DC_11_2000:
+    case Version::DC_V1:
+    case Version::DC_V2:
+      return 1;
+
+    case Version::PC_PATCH:
+    case Version::PC_NTE:
+    case Version::PC_V2:
+      return 2;
+
+    case Version::GC_NTE:
+    case Version::GC_V3:
+    case Version::GC_EP3_NTE:
+    case Version::GC_EP3:
+      return 3;
+
+    case Version::XB_V3:
+      return 4;
+
+    case Version::BB_PATCH:
+    case Version::BB_V4:
+      return 5;
+
+    default:
+      throw std::logic_error("invalid game version for account client source");
+  }
+}
+
+static uint64_t account_client_source_key(uint32_t account_id, Version v) {
+  return (static_cast<uint64_t>(account_id) << 8) | account_client_source_for_version(v);
+}
+
+
 void Client::set_flags_for_version(Version version, int64_t sub_version) {
   this->set_flag(Flag::PROXY_CHAT_COMMANDS_ENABLED);
 
@@ -459,14 +496,27 @@ void Client::set_login(std::shared_ptr<Login> login) {
 
   auto s = this->require_server_state();
   if (!s->allow_same_account_concurrent_logins) {
-    auto it = s->client_for_account.find(login->account->account_id);
-    if ((it != s->client_for_account.end()) && (it->second.get() != this)) {
-      if (it->second->channel) {
-        it->second->channel->disconnect();
+    if (s->allow_same_account_concurrent_logins_across_client_sources) {
+      uint64_t source_key = account_client_source_key(login->account->account_id, this->version());
+      auto it = s->client_for_account_source.find(source_key);
+      if ((it != s->client_for_account_source.end()) && (it->second.get() != this)) {
+        if (it->second->channel) {
+          it->second->channel->disconnect();
+        }
+        s->client_for_account_source.erase(it);
       }
-      s->client_for_account.erase(it);
+      s->client_for_account_source.emplace(source_key, this->shared_from_this());
+
+    } else {
+      auto it = s->client_for_account.find(login->account->account_id);
+      if ((it != s->client_for_account.end()) && (it->second.get() != this)) {
+        if (it->second->channel) {
+          it->second->channel->disconnect();
+        }
+        s->client_for_account.erase(it);
+      }
+      s->client_for_account.emplace(this->login->account->account_id, this->shared_from_this());
     }
-    s->client_for_account.emplace(this->login->account->account_id, this->shared_from_this());
   }
 
   if (this->log.should_log(phosg::LogLevel::L_INFO)) {

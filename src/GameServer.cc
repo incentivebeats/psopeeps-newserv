@@ -1,4 +1,42 @@
 #include "GameServer.hh"
+#include <stdexcept>
+
+
+static uint8_t account_client_source_for_version(Version v) {
+  switch (v) {
+    case Version::DC_NTE:
+    case Version::DC_11_2000:
+    case Version::DC_V1:
+    case Version::DC_V2:
+      return 1;
+
+    case Version::PC_PATCH:
+    case Version::PC_NTE:
+    case Version::PC_V2:
+      return 2;
+
+    case Version::GC_NTE:
+    case Version::GC_V3:
+    case Version::GC_EP3_NTE:
+    case Version::GC_EP3:
+      return 3;
+
+    case Version::XB_V3:
+      return 4;
+
+    case Version::BB_PATCH:
+    case Version::BB_V4:
+      return 5;
+
+    default:
+      throw std::logic_error("invalid game version for account client source");
+  }
+}
+
+static uint64_t account_client_source_key(uint32_t account_id, Version v) {
+  return (static_cast<uint64_t>(account_id) << 8) | account_client_source_for_version(v);
+}
+
 
 #include <ctype.h>
 #include <errno.h>
@@ -200,6 +238,12 @@ asio::awaitable<void> GameServer::destroy_client(std::shared_ptr<Client> c) {
     auto it = this->state->client_for_account.find(c->login->account->account_id);
     if ((it != this->state->client_for_account.end()) && (it->second == c)) {
       this->state->client_for_account.erase(it);
+    }
+
+    uint64_t source_key = account_client_source_key(c->login->account->account_id, c->version());
+    auto source_it = this->state->client_for_account_source.find(source_key);
+    if ((source_it != this->state->client_for_account_source.end()) && (source_it->second == c)) {
+      this->state->client_for_account_source.erase(source_it);
     }
   }
 }
