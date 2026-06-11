@@ -29,6 +29,7 @@ struct Config {
   bool notify_backup_saves = true;
   bool notify_bb_sessions = false;
   bool enable_login_locks = false; // Reserved for future blocking lock behavior
+  uint64_t login_lock_heartbeat_interval_usecs = 60000000;
   std::string spool_directory = "system/account-sync-spool";
 };
 
@@ -42,6 +43,8 @@ struct LoginLockAcquireResult {
   std::string message;
   std::string holder_source;
 };
+
+void start_login_lock_heartbeat_task(asio::io_context& io_context);
 
 asio::awaitable<LoginLockAcquireResult> acquire_login_lock(
     uint32_t account_id,
