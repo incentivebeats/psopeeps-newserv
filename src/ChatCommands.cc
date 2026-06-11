@@ -436,19 +436,13 @@ ChatCommandDefinition cc_bank(
         throw std::runtime_error("cannot change banks while Battle or Challenge is in progress");
       }
 
-      ssize_t new_char_index = a.text.empty() ? (a.c->bb_character_index + 1) : stol(a.text, nullptr, 0);
-
-      if (new_char_index <= 0) {
-        a.c->change_bank(-1);
-        send_text_message(a.c, "$C6Using shared bank");
-
-      } else if (new_char_index <= 127) {
-        a.c->change_bank(new_char_index - 1);
-        send_text_message_fmt(a.c, "$C6Using character {}'s bank", new_char_index);
-
-      } else {
-        throw precondition_failed("$C6Invalid bank number");
+      if (!a.text.empty()) {
+        throw precondition_failed("$C6Bank switching is disabled\non Hardcore.");
       }
+
+      ssize_t new_char_index = a.c->bb_character_index + 1;
+      a.c->change_bank(new_char_index - 1);
+      send_text_message(a.c, "$C6Using this character's bank");
 
       auto bank = a.c->bank_file();
       bank->assign_ids(0x99000000 + (a.c->lobby_client_id << 20));
