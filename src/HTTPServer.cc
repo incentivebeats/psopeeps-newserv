@@ -901,6 +901,45 @@ HTTPServer::HTTPServer(std::shared_ptr<ServerState> state)
     }
   });
 
+
+  this->router.add(HTTPRequest::Method::POST, "/y/account/:account_id/set-bb-license",
+      [this, parse_account_id, require_string_length, require_account_admin_secret, account_mutation_response](ArgsT&& args) -> RetT {
+    require_account_admin_secret(args.req);
+    uint32_t account_id = parse_account_id(args.params.at("account_id"));
+
+    try {
+      auto account = this->state->account_index->from_account_id(account_id);
+
+      auto license = std::make_shared<BBLicense>();
+      license->username = args.post_data.get_string("username");
+      license->password = args.post_data.get_string("password", "");
+      require_string_length(license->username, "username", 1, 16);
+      require_string_length(license->password, "password", 1, 16);
+
+      auto existing_it = account->bb_licenses.find(license->username);
+      if (existing_it != account->bb_licenses.end()) {
+        existing_it->second->password = license->password;
+      } else {
+        this->state->account_index->add_bb_license(account, license);
+      }
+
+      account->save();
+      co_return account_mutation_response("set-bb-license", account);
+
+    } catch (const AccountIndex::missing_account&) {
+      throw HTTPError(404, "Account does not exist");
+    } catch (const HTTPError&) {
+      throw;
+    } catch (const std::runtime_error& e) {
+      if (!strcmp(e.what(), "username already registered")) {
+        throw HTTPError(409, e.what());
+      }
+      throw HTTPError(400, e.what());
+    } catch (const std::exception& e) {
+      throw HTTPError(400, e.what());
+    }
+  });
+
   this->router.add(HTTPRequest::Method::POST, "/y/account/:account_id/delete-license",
       [this, parse_account_id, parse_u32_string, normalize_license_type, require_account_admin_secret, account_mutation_response](ArgsT&& args) -> RetT {
     require_account_admin_secret(args.req);
