@@ -3279,7 +3279,86 @@ static void on_10_game_menu(std::shared_ptr<Client> c, uint32_t item_id, const s
     return;
   }
   switch (game->join_error_for_client(c, &password)) {
-    case Lobby::JoinError::ALLOWED:
+    case Lobby::JoinError::ALLOWED: {
+      if (game->is_game() && s->enable_hardcore_mode && (c->version() == Version::BB_V4)) {
+        static constexpr uint16_t HARDCORE_DARK_FALZ_CLEAR_FLAG = 0x0033;
+        static constexpr uint16_t HARDCORE_OLGA_FLOW_CLEAR_FLAG = 0x0057;
+
+        if (((game->episode == Episode::EP2) || (game->episode == Episode::EP4)) &&
+            ((game->difficulty == Difficulty::NORMAL) || (game->difficulty == Difficulty::HARD))) {
+          c->log.warning_f(
+              "Hardcore join blocked: Episode {} is unavailable below Very Hard",
+              (game->episode == Episode::EP2) ? 2 : 4);
+          send_lobby_message_box(c,
+              (game->episode == Episode::EP2)
+                  ? "$C6Hardcore Episode 2\nis available on\nVery Hard and Ultimate."
+                  : "$C6Hardcore Episode 4\nis available on\nVery Hard and Ultimate.");
+          return;
+        }
+
+        auto progression_p = c->character_file();
+        auto require_hardcore_boss_clear = [&](uint16_t flag_num, Difficulty required_difficulty, const char* boss_name) -> bool {
+          if (progression_p->quest_flags.get(required_difficulty, flag_num)) {
+            return true;
+          }
+
+          c->log.warning_f(
+              "Hardcore join progression blocked: Episode {} {} requires {} clear on {}",
+              static_cast<size_t>(game->episode),
+              name_for_difficulty(game->difficulty),
+              boss_name,
+              name_for_difficulty(required_difficulty));
+          send_lobby_message_box(c, std::format(
+              "$C6Hardcore progression\nDefeat {} on\n{} first.",
+              boss_name,
+              name_for_difficulty(required_difficulty)));
+          return false;
+        };
+
+        size_t difficulty_index = static_cast<size_t>(game->difficulty);
+
+        if (game->episode == Episode::EP1) {
+          if ((difficulty_index >= 1) && (difficulty_index <= 3)) {
+            Difficulty required_difficulty = static_cast<Difficulty>(difficulty_index - 1);
+            if (!require_hardcore_boss_clear(HARDCORE_DARK_FALZ_CLEAR_FLAG, required_difficulty, "Dark Falz")) {
+              return;
+            }
+          }
+        } else if (game->episode == Episode::EP2) {
+          if (difficulty_index == 2) {
+            if (!require_hardcore_boss_clear(HARDCORE_DARK_FALZ_CLEAR_FLAG, static_cast<Difficulty>(2), "Dark Falz")) {
+              return;
+            }
+          } else if (difficulty_index == 3) {
+            if (!require_hardcore_boss_clear(HARDCORE_OLGA_FLOW_CLEAR_FLAG, static_cast<Difficulty>(2), "Olga Flow")) {
+              return;
+            }
+          }
+        } else if (game->episode == Episode::EP4) {
+          if ((difficulty_index == 2) || (difficulty_index == 3)) {
+            if (!require_hardcore_boss_clear(HARDCORE_OLGA_FLOW_CLEAR_FLAG, game->difficulty, "Olga Flow")) {
+              return;
+            }
+          }
+        }
+
+        size_t min_level = s->default_min_level_for_game(c->version(), game->episode, game->difficulty);
+        if (((game->episode == Episode::EP2) || (game->episode == Episode::EP4)) &&
+            (min_level > c->character_file()->disp.stats.level)) {
+          c->log.warning_f(
+              "Hardcore join blocked: Episode {} {} requires level {}",
+              (game->episode == Episode::EP2) ? 2 : 4,
+              name_for_difficulty(game->difficulty),
+              min_level + 1);
+          send_lobby_message_box(c, std::format(
+              "$C6Hardcore Episode {}\n{} requires\nlevel {} or above.",
+              (game->episode == Episode::EP2) ? 2 : 4,
+              name_for_difficulty(game->difficulty),
+              min_level + 1));
+          return;
+        }
+      }
+
       if (!s->change_client_lobby(c, game)) {
         throw std::logic_error("client cannot join game after all preconditions satisfied");
       }
@@ -3297,6 +3376,7 @@ static void on_10_game_menu(std::shared_ptr<Client> c, uint32_t item_id, const s
         }
       }
       break;
+    }
     case Lobby::JoinError::FULL:
       send_lobby_message_box(c, "$C7You cannot join this\ngame because it is\nfull.");
       break;
