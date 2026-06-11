@@ -2,6 +2,8 @@
 
 #include <cstddef>
 #include <cstdint>
+
+#include <asio.hpp>
 #include <string>
 
 #include <phosg/JSON.hh>
@@ -27,11 +29,32 @@ struct Config {
   bool notify_backup_saves = true;
   bool notify_bb_sessions = false;
   bool enable_login_locks = false; // Reserved for future blocking lock behavior
+  uint64_t login_lock_heartbeat_interval_usecs = 60000000;
   std::string spool_directory = "system/account-sync-spool";
 };
 
 void configure(const Config& cfg);
 void configure_from_json(const phosg::JSON& json);
+
+struct LoginLockAcquireResult {
+  bool allowed = true;
+  bool fail_open_used = false;
+  std::string session_nonce;
+  std::string message;
+  std::string holder_source;
+};
+
+void start_login_lock_heartbeat_task(asio::io_context& io_context);
+
+asio::awaitable<LoginLockAcquireResult> acquire_login_lock(
+    uint32_t account_id,
+    const std::string& version_name,
+    const std::string& existing_session_nonce);
+
+void notify_login_session_end(
+    uint32_t account_id,
+    const std::string& session_nonce,
+    const std::string& version_name);
 
 void notify_account_saved(uint32_t account_id, const std::string& filename);
 void notify_backup_saved(uint32_t account_id, size_t slot, const std::string& filename);

@@ -242,6 +242,15 @@ Client::~Client() {
           this->bb_character_index);
     }
   }
+
+  if (this->account_sync_lock_acquired && this->login && this->login->account) {
+    AccountSync::notify_login_session_end(
+        this->login->account->account_id,
+        this->account_sync_session_nonce,
+        phosg::name_for_enum(this->version()));
+    this->account_sync_lock_acquired = false;
+  }
+
   this->log.info_f("Deleted");
 }
 
