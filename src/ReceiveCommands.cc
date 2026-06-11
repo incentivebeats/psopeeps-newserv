@@ -669,6 +669,25 @@ asio::awaitable<void> start_login_server_procedure(std::shared_ptr<Client> c) {
 static asio::awaitable<void> on_login_complete(std::shared_ptr<Client> c) {
   auto s = c->require_server_state();
 
+  if (c->login && c->login->account) {
+    auto lock_res = co_await AccountSync::acquire_login_lock(
+        c->login->account->account_id,
+        phosg::name_for_enum(c->version()),
+        c->account_sync_session_nonce);
+
+    if (!lock_res.allowed) {
+      c->log.info_f("Login lock denied: {}", lock_res.message);
+      c->channel->disconnect();
+      co_return;
+    }
+
+    if (!lock_res.session_nonce.empty()) {
+      c->account_sync_lock_acquired = true;
+      c->account_sync_lock_account_id = c->login->account->account_id;
+      c->account_sync_session_nonce = lock_res.session_nonce;
+    }
+  }
+
   c->convert_account_to_temporary_if_nte();
 
   if (!is_v4(c->version())) {
