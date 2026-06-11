@@ -3,8 +3,10 @@
 #include "AsyncUtils.hh"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <inttypes.h>
 #include <filesystem>
 #include <memory>
 #include <format>
@@ -18,6 +20,7 @@ namespace AccountSync {
 static std::mutex config_mutex;
 static std::mutex spool_mutex;
 static Config current_config;
+static std::atomic<bool> heartbeat_task_started(false);
 
 static uint64_t now_usecs() {
   using namespace std::chrono;
@@ -402,10 +405,80 @@ void configure_from_json(const phosg::JSON& json) {
   cfg.notify_player_saves = json.get_bool("NotifyPlayerSaves", true);
   cfg.notify_backup_saves = json.get_bool("NotifyBackupSaves", true);
   cfg.enable_login_locks = json.get_bool("EnableLoginLocks", false);
+  cfg.login_lock_heartbeat_interval_usecs = json.get_int("LoginLockHeartbeatIntervalUsecs", 60000000);
   cfg.notify_bb_sessions = json.get_bool("NotifyBBSessions", cfg.enable_login_locks);
   cfg.spool_directory = json.get_string("SpoolDirectory", "system/account-sync-spool");
   configure(cfg);
 }
+
+static asio::awaitable<void> send_login_lock_heartbeat() {
+  auto cfg = get_config();
+
+  if (!cfg.enabled || !cfg.enable_login_locks) {
+    co_return;
+  }
+  if (cfg.coordinator_url.empty()) {
+    std::fprintf(stderr,
+        "[AccountSync] warning login_lock_heartbeat_skipped reason=coordinator_url_not_configured source=%s\n",
+        source_label(cfg).c_str());
+    co_return;
+  }
+
+  std::string body = std::format(
+      "{{\"source\":\"{}\",\"source_region\":\"{}\",\"source_ship\":\"{}\",\"account_store\":\"{}\"}}",
+      json_escape(source_label(cfg)),
+      json_escape(cfg.source_region),
+      json_escape(cfg.source_ship),
+      json_escape(cfg.account_store));
+
+  try {
+    phosg::JSON response = co_await post_json_with_timeout(cfg, "/account-locks/heartbeat", body);
+    bool ok = response.get_bool("ok", response.get_bool("OK", false));
+    if (!ok) {
+      std::fprintf(stderr,
+          "[AccountSync] warning login_lock_heartbeat_rejected source=%s response=%s\n",
+          source_label(cfg).c_str(),
+          response.serialize().c_str());
+      co_return;
+    }
+
+    int64_t refreshed = response.get_int("refreshed", 0);
+    std::fprintf(stderr,
+        "[AccountSync] login_lock_heartbeat_ok source=%s refreshed=%" PRId64 "\n",
+        source_label(cfg).c_str(),
+        refreshed);
+
+  } catch (const std::exception& e) {
+    std::fprintf(stderr,
+        "[AccountSync] warning login_lock_heartbeat_failed source=%s error=%s\n",
+        source_label(cfg).c_str(),
+        e.what());
+  }
+}
+
+static asio::awaitable<void> login_lock_heartbeat_task() {
+  for (;;) {
+    auto cfg = get_config();
+    uint64_t interval_usecs = cfg.login_lock_heartbeat_interval_usecs;
+    if (interval_usecs < 5000000) {
+      interval_usecs = 5000000;
+    }
+
+    co_await async_sleep(std::chrono::microseconds(interval_usecs));
+    co_await send_login_lock_heartbeat();
+  }
+}
+
+void start_login_lock_heartbeat_task(asio::io_context& io_context) {
+  bool expected = false;
+  if (!heartbeat_task_started.compare_exchange_strong(expected, true)) {
+    return;
+  }
+
+  asio::co_spawn(io_context, login_lock_heartbeat_task(), asio::detached);
+  std::fprintf(stderr, "[AccountSync] login lock heartbeat task started\n");
+}
+
 
 asio::awaitable<LoginLockAcquireResult> acquire_login_lock(
     uint32_t account_id,
