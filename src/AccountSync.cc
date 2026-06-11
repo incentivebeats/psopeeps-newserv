@@ -170,6 +170,59 @@ void configure_from_json(const phosg::JSON& json) {
   configure(cfg);
 }
 
+asio::awaitable<LoginLockAcquireResult> acquire_login_lock(
+    uint32_t account_id,
+    const std::string& version_name,
+    const std::string& existing_session_nonce) {
+  auto cfg = get_config();
+
+  LoginLockAcquireResult ret;
+  if (!cfg.enabled || !cfg.enable_login_locks) {
+    co_return ret;
+  }
+
+  if (!existing_session_nonce.empty()) {
+    ret.session_nonce = existing_session_nonce;
+    co_return ret;
+  }
+
+  ret.session_nonce = std::format("{}-{}-{}", source_label(cfg), account_id, now_usecs());
+  std::fprintf(stderr,
+      "[AccountSync] warning login_locks enabled but coordinator acquire is not implemented; allowing account_id=%010u source=%s version=%s nonce=%s\n",
+      static_cast<unsigned int>(account_id),
+      source_label(cfg).c_str(),
+      version_name.c_str(),
+      ret.session_nonce.c_str());
+
+  co_return ret;
+}
+
+void notify_login_session_end(
+    uint32_t account_id,
+    const std::string& session_nonce,
+    const std::string& version_name) {
+  auto cfg = get_config();
+  if (!cfg.enabled || !cfg.enable_login_locks) {
+    return;
+  }
+
+  std::fprintf(stderr,
+      "[AccountSync] event=login_session_end source=%s source_region=%s source_ship=%s account_store=%s account_id=%010u session_nonce=%s version=%s\n",
+      source_label(cfg).c_str(),
+      cfg.source_region.c_str(),
+      cfg.source_ship.c_str(),
+      cfg.account_store.c_str(),
+      static_cast<unsigned int>(account_id),
+      session_nonce.c_str(),
+      version_name.c_str());
+
+  auto line = base_event_json(cfg, "login_session_end", account_id) +
+      std::format(",\"session_nonce\":\"{}\",\"version\":\"{}\"}}",
+          json_escape(session_nonce),
+          json_escape(version_name));
+  append_spool_line(cfg, line);
+}
+
 void notify_account_saved(uint32_t account_id, const std::string& filename) {
   auto cfg = get_config();
   if (!cfg.enabled || !cfg.notify_account_saves) {
