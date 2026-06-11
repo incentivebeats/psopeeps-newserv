@@ -132,6 +132,9 @@ public:
   uint64_t xb_user_id = 0;
   uint32_t xb_unknown_a1b = 0;
   std::shared_ptr<Login> login;
+  bool account_sync_lock_acquired = false;
+  uint32_t account_sync_lock_account_id = 0;
+  std::string account_sync_session_nonce;
   std::shared_ptr<ProxySession> proxy_session;
 
   // Patch server state (only used for PC_PATCH and BB_PATCH versions)
