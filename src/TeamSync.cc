@@ -42,6 +42,8 @@ struct OutboundEvent {
   std::string team_name;
   uint32_t creator_account_id = 0;
   std::string creator_name;
+
+  int64_t points_delta = 0;
 };
 
 static constexpr size_t MAX_OUTBOUND_EVENTS = 256;
@@ -452,6 +454,11 @@ bool relay_team_chat_enabled() {
   return cfg.enabled && cfg.relay_team_chat;
 }
 
+bool relay_team_points_enabled() {
+  auto cfg = get_config();
+  return cfg.enabled && cfg.relay_team_points;
+}
+
 bool relay_team_actions_enabled() {
   auto cfg = get_config();
   return cfg.enabled && cfg.relay_team_actions;
@@ -507,6 +514,45 @@ bool enqueue_team_member_add(uint32_t team_id, uint32_t account_id, const std::s
   ev.team_id = team_id;
   ev.account_id = account_id;
   ev.name = name;
+  outbound_events.emplace_back(std::move(ev));
+  return true;
+}
+
+bool enqueue_team_member_update(uint32_t account_id, const std::string& name, int64_t points_delta) {
+  auto cfg = get_config();
+  if (!cfg.enabled || account_id == 0) {
+    return false;
+  }
+
+  bool has_name = !name.empty();
+  bool has_points = (points_delta != 0);
+  if (!has_name && !has_points) {
+    return false;
+  }
+  if (points_delta < 0) {
+    return false;
+  }
+  if (has_name && !cfg.relay_team_actions) {
+    return false;
+  }
+  if (has_points && !cfg.relay_team_points) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> g(exchange_state_mutex);
+  if (outbound_events.size() >= MAX_OUTBOUND_EVENTS) {
+    std::fprintf(stderr,
+        "[TeamSync] warning outbound_event_dropped reason=queue_full source=%s team_namespace=%s type=team_member_update\n",
+        source_label(cfg).c_str(),
+        cfg.team_namespace.c_str());
+    return false;
+  }
+
+  OutboundEvent ev;
+  ev.type = "team_member_update";
+  ev.account_id = account_id;
+  ev.name = name;
+  ev.points_delta = points_delta;
   outbound_events.emplace_back(std::move(ev));
   return true;
 }
@@ -587,6 +633,15 @@ static std::string exchange_body_for_current_state(const Config& cfg) {
             ev.team_id,
             ev.account_id,
             json_escape(ev.name));
+
+      } else if (ev.type == "team_member_update") {
+        parts += std::format(
+            "{{\"seq\":{},\"type\":\"team_member_update\",\"team_namespace\":\"{}\",\"account_id\":{},\"name\":\"{}\",\"points_delta\":{}}}",
+            ev.seq,
+            json_escape(cfg.team_namespace),
+            ev.account_id,
+            json_escape(ev.name),
+            ev.points_delta);
 
       } else if (ev.type == "team_member_remove") {
         parts += std::format(
