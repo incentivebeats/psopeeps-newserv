@@ -22,6 +22,7 @@
 #include "SendCommands.hh"
 #include "StaticGameData.hh"
 #include "Text.hh"
+#include "TeamSync.hh"
 
 // The functions in this file are called when a client sends a game command (60, 62, 6C, 6D, C9, or CB).
 
@@ -4785,6 +4786,12 @@ static void on_exchange_item_for_team_points_bb(std::shared_ptr<Client> c, Subco
   }
 
   auto s = c->require_server_state();
+  if (TeamSync::relay_team_actions_enabled()) {
+    // TeamSync phase 1 is membership-only. Team points are not yet routed
+    // through the authority, so do not consume the item locally.
+    return;
+  }
+
   auto p = c->character_file();
   const auto& limits = *s->item_stack_limits(c->version());
   auto item = p->remove_item(cmd.item_id, cmd.amount, limits);

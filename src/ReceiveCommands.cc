@@ -6262,6 +6262,11 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
     case 0x0FEA: { // Set team flag
       auto team = c->team();
       if (team && team->members.at(c->login->account->account_id).check_flag(TeamIndex::Team::Member::Flag::IS_MASTER)) {
+        if (TeamSync::relay_team_actions_enabled()) {
+          // TeamSync phase 1 is membership-only. Do not mutate local-only team
+          // metadata that would be erased by the next authority apply.
+          break;
+        }
         const auto& cmd = check_size_t<C_SetTeamFlag_BB_0FEA>(msg.data);
         s->team_index->set_flag_data(team->team_id, cmd.flag_data);
         send_team_metadata_change_notifications(s, team, 0, TeamMetadataChange::FLAG_DATA);
@@ -6271,6 +6276,12 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
     case 0x10EA: { // Disband team
       auto team = c->team();
       if (team && team->members.at(c->login->account->account_id).check_flag(TeamIndex::Team::Member::Flag::IS_MASTER)) {
+        if (TeamSync::relay_team_actions_enabled()) {
+          // TeamSync phase 1 is membership-only. Disband is not yet routed
+          // through the authority.
+          send_command(c, 0x10EA, 0x00000001);
+          break;
+        }
         s->team_index->disband(team->team_id);
         send_command(c, 0x10EA, 0x00000000);
         send_team_metadata_change_notifications(s, team, 0, TeamMetadataChange::TEAM_DISBANDED);
@@ -6283,6 +6294,13 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
         auto& cmd = check_size_t<C_ChangeTeamMemberPrivilegeLevel_BB_11EA>(msg.data);
         if (cmd.guild_card_number == c->login->account->account_id) {
           throw std::runtime_error("this command cannot be used to modify your own permissions");
+        }
+
+        if (TeamSync::relay_team_actions_enabled()) {
+          // TeamSync phase 1 is membership-only. Privilege/master changes are
+          // not yet routed through the authority.
+          send_command(c, 0x11EA, 0x00000005);
+          break;
         }
 
         // The client only sends this command with flag = 0x00, 0x30, or 0x40
@@ -6342,6 +6360,12 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
           throw std::runtime_error("team reward already purchased");
         }
 
+        if (TeamSync::relay_team_actions_enabled()) {
+          // TeamSync phase 1 is membership-only. Rewards/points are not yet
+          // routed through the authority.
+          break;
+        }
+
         s->team_index->buy_reward(team->team_id, reward.key, reward.team_points, reward.reward_flag);
 
         if (reward.reward_flag != TeamIndex::Team::RewardFlag::NONE) {
@@ -6366,6 +6390,10 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
         send_command(c, 0x1FEA, 0x00000001);
       } else if (s->team_index->get_by_name(new_team_name)) {
         send_command(c, 0x1FEA, 0x00000002);
+      } else if (TeamSync::relay_team_actions_enabled()) {
+        // TeamSync phase 1 is membership-only. Rename is not yet routed
+        // through the authority.
+        send_command(c, 0x1FEA, 0x00000001);
       } else {
         s->team_index->rename(team->team_id, new_team_name);
         send_command(c, 0x1FEA, 0x00000000);
