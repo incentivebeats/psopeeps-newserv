@@ -1,8 +1,10 @@
 #include "TeamSync.hh"
 
 #include <cstddef>
+#include <cstdint>
 #include <cstdio>
 #include <mutex>
+#include <stdexcept>
 
 namespace TeamSync {
 
@@ -57,26 +59,35 @@ void configure_from_json(const phosg::JSON& json) {
   cfg.source_region = json.get_string("SourceRegion", "");
   cfg.source_ship = json.get_string("SourceShip", "");
 
-  if (cfg.source_region.empty() && cfg.source_ship.empty() && !legacy_region.empty()) {
-    size_t dash_offset = legacy_region.find('-');
+  const std::string identity_source = !cfg.source.empty() ? cfg.source : legacy_region;
+  if (cfg.source_region.empty() && cfg.source_ship.empty() && !identity_source.empty()) {
+    size_t dash_offset = identity_source.find('-');
     if (dash_offset != std::string::npos) {
-      cfg.source_region = legacy_region.substr(0, dash_offset);
-      cfg.source_ship = legacy_region.substr(dash_offset + 1);
+      cfg.source_region = identity_source.substr(0, dash_offset);
+      cfg.source_ship = identity_source.substr(dash_offset + 1);
     } else {
-      cfg.source_region = legacy_region;
+      cfg.source_region = identity_source;
     }
   }
 
   cfg.coordinator_url = json.get_string("CoordinatorURL", "");
   cfg.shared_secret = json.get_string("SharedSecret", "");
-  cfg.request_timeout_usecs = json.get_int("RequestTimeoutUsecs", 3000000);
-  if (cfg.request_timeout_usecs < 100000) {
-    cfg.request_timeout_usecs = 100000;
+
+  int64_t request_timeout_usecs = json.get_int("RequestTimeoutUsecs", 3000000);
+  if (request_timeout_usecs < 100000) {
+    request_timeout_usecs = 100000;
+  } else if (request_timeout_usecs > 30000000) {
+    request_timeout_usecs = 30000000;
   }
+  cfg.request_timeout_usecs = static_cast<uint64_t>(request_timeout_usecs);
 
   cfg.relay_team_chat = json.get_bool("RelayTeamChat", false);
   cfg.relay_team_points = json.get_bool("RelayTeamPoints", false);
   cfg.relay_team_actions = json.get_bool("RelayTeamActions", false);
+
+  if (cfg.enabled && (cfg.source_region.empty() || cfg.source_ship.empty())) {
+    throw std::runtime_error("TeamSync requires SourceRegion and SourceShip, or Source/Region in region-ship form");
+  }
 
   configure(cfg);
 }
