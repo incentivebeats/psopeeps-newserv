@@ -5084,7 +5084,7 @@ static void on_exchange_item_for_team_points_bb(std::shared_ptr<Client> c, Subco
   }
 
   auto s = c->require_server_state();
-  if (TeamSync::relay_team_actions_enabled()) {
+  if (TeamSync::relay_team_actions_enabled() && !TeamSync::relay_team_points_enabled()) {
     // TeamSync phase 1 is membership-only. Team points are not yet routed
     // through the authority, so do not consume the item locally.
     return;
@@ -5096,12 +5096,23 @@ static void on_exchange_item_for_team_points_bb(std::shared_ptr<Client> c, Subco
   size_t amount = item.stack_size(limits);
 
   size_t points = s->item_parameter_table(Version::BB_V4)->get_item_team_points(item);
-  s->team_index->add_member_points(c->login->account->account_id, points * amount);
+  uint32_t earned_points = points * amount;
+  if (TeamSync::relay_team_points_enabled() &&
+      !TeamSync::enqueue_team_member_update(c->login->account->account_id, "", earned_points)) {
+    l->log.warning_f("Failed to enqueue TeamSync team point update for account {:08X}; returning item to inventory",
+        c->login->account->account_id);
+    item.id = l->generate_item_id(0xFF);
+    p->add_item(item, limits);
+    send_create_inventory_item_to_lobby(c, c->lobby_client_id, item);
+    return;
+  }
+
+  s->team_index->add_member_points(c->login->account->account_id, earned_points);
 
   if (l->log.should_log(phosg::LogLevel::L_INFO)) {
     auto name = s->describe_item(c->version(), item);
     l->log.info_f("Player {} exchanged inventory item {}:{:08X} ({}) x{} for {} * {} = {} team points",
-        c->lobby_client_id, cmd.header.client_id, cmd.item_id, name, amount, points, amount, points * amount);
+        c->lobby_client_id, cmd.header.client_id, cmd.item_id, name, amount, points, amount, earned_points);
     c->print_inventory();
   }
 
