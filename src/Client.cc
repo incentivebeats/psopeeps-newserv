@@ -1,4 +1,5 @@
 #include "Client.hh"
+#include "TeamSync.hh"
 
 #include <errno.h>
 #include <string.h>
@@ -406,6 +407,7 @@ std::shared_ptr<const TeamIndex::Team> Client::team() const {
     std::string name = p->disp.visual.name.decode(this->language());
     if (m.name != name) {
       this->log.info_f("Updating player name in team config");
+      TeamSync::enqueue_team_member_update(this->login->account->account_id, name, 0);
       s->team_index->update_member_name(this->login->account->account_id, name);
     }
   }
