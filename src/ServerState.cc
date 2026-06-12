@@ -1650,12 +1650,48 @@ void ServerState::load_teams() {
   this->team_index = std::make_shared<TeamIndex>("system/teams", this->team_reward_defs_json);
 
   TeamSync::set_canonical_team_state_callback([this](const phosg::JSON& canonical_team_state) -> void {
-    if (!this->team_index) {
+    if (!this->team_index || !this->account_index) {
       return;
     }
+
     try {
       this->team_index->replace_all_from_authority(canonical_team_state);
-      config_log.info_f("Applied canonical TeamSync team state");
+
+      std::unordered_map<uint32_t, uint32_t> account_id_to_team_id;
+      const auto& teams_json = canonical_team_state.get("teams", phosg::JSON::list()).as_list();
+      for (const auto& team_json_p : teams_json) {
+        const auto& team_json = *team_json_p;
+        uint32_t team_id = team_json.get_int("team_id", 0);
+        if (!team_id) {
+          continue;
+        }
+
+        const auto& members_json = team_json.get("members", phosg::JSON::list()).as_list();
+        for (const auto& member_json_p : members_json) {
+          const auto& member_json = *member_json_p;
+          uint32_t account_id = member_json.get_int("account_id", member_json.get_int("AccountID", 0));
+          if (account_id) {
+            account_id_to_team_id.emplace(account_id, team_id);
+          }
+        }
+      }
+
+      size_t account_updates = 0;
+      for (const auto& account : this->account_index->all()) {
+        auto it = account_id_to_team_id.find(account->account_id);
+        uint32_t authority_team_id = (it == account_id_to_team_id.end()) ? 0 : it->second;
+        if (account->bb_team_id != authority_team_id) {
+          account->bb_team_id = authority_team_id;
+          account->save();
+          account_updates++;
+        }
+      }
+
+      config_log.info_f(
+          "Applied canonical TeamSync team state (teams={}, account_updates={})",
+          teams_json.size(),
+          account_updates);
+
     } catch (const std::exception& e) {
       config_log.warning_f("Failed to apply canonical TeamSync team state: {}", e.what());
     }
