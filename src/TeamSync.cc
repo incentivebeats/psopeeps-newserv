@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <format>
 #include <functional>
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <random>
@@ -44,6 +45,15 @@ struct OutboundEvent {
   std::string creator_name;
 
   int64_t points_delta = 0;
+
+  std::string new_name;
+  uint8_t flags = 0;
+  uint32_t master_account_id = 0;
+  uint32_t new_master_account_id = 0;
+  std::string key;
+  uint32_t points = 0;
+  uint32_t reward_flag = 0;
+  std::string flag_data_hex;
 };
 
 static constexpr size_t MAX_OUTBOUND_EVENTS = 256;
@@ -192,6 +202,18 @@ static std::string json_escape(const std::string& s) {
     } else {
       ret += ch;
     }
+  }
+  return ret;
+}
+
+static std::string hex_encode(const void* data, size_t size) {
+  static const char* chars = "0123456789abcdef";
+  const uint8_t* bytes = reinterpret_cast<const uint8_t*>(data);
+  std::string ret;
+  ret.resize(size * 2);
+  for (size_t z = 0; z < size; z++) {
+    ret[z * 2] = chars[bytes[z] >> 4];
+    ret[z * 2 + 1] = chars[bytes[z] & 0x0F];
   }
   return ret;
 }
@@ -557,6 +579,121 @@ bool enqueue_team_member_update(uint32_t account_id, const std::string& name, in
   return true;
 }
 
+bool enqueue_team_rename(uint32_t team_id, const std::string& new_name) {
+  auto cfg = get_config();
+  if (!cfg.enabled || !cfg.relay_team_actions || team_id == 0 || new_name.empty()) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> g(exchange_state_mutex);
+  if (outbound_events.size() >= MAX_OUTBOUND_EVENTS) {
+    return false;
+  }
+
+  OutboundEvent ev;
+  ev.type = "team_rename";
+  ev.team_id = team_id;
+  ev.new_name = new_name;
+  outbound_events.emplace_back(std::move(ev));
+  return true;
+}
+
+bool enqueue_team_disband(uint32_t team_id) {
+  auto cfg = get_config();
+  if (!cfg.enabled || !cfg.relay_team_actions || team_id == 0) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> g(exchange_state_mutex);
+  if (outbound_events.size() >= MAX_OUTBOUND_EVENTS) {
+    return false;
+  }
+
+  OutboundEvent ev;
+  ev.type = "team_disband";
+  ev.team_id = team_id;
+  outbound_events.emplace_back(std::move(ev));
+  return true;
+}
+
+bool enqueue_team_member_flags_update(uint32_t account_id, uint8_t flags) {
+  auto cfg = get_config();
+  if (!cfg.enabled || !cfg.relay_team_actions || account_id == 0) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> g(exchange_state_mutex);
+  if (outbound_events.size() >= MAX_OUTBOUND_EVENTS) {
+    return false;
+  }
+
+  OutboundEvent ev;
+  ev.type = "team_member_flags_update";
+  ev.account_id = account_id;
+  ev.flags = flags;
+  outbound_events.emplace_back(std::move(ev));
+  return true;
+}
+
+bool enqueue_team_master_transfer(uint32_t master_account_id, uint32_t new_master_account_id) {
+  auto cfg = get_config();
+  if (!cfg.enabled || !cfg.relay_team_actions || master_account_id == 0 || new_master_account_id == 0) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> g(exchange_state_mutex);
+  if (outbound_events.size() >= MAX_OUTBOUND_EVENTS) {
+    return false;
+  }
+
+  OutboundEvent ev;
+  ev.type = "team_master_transfer";
+  ev.master_account_id = master_account_id;
+  ev.new_master_account_id = new_master_account_id;
+  outbound_events.emplace_back(std::move(ev));
+  return true;
+}
+
+bool enqueue_team_reward_purchase(uint32_t team_id, const std::string& key, uint32_t points, uint32_t reward_flag) {
+  auto cfg = get_config();
+  if (!cfg.enabled || !cfg.relay_team_actions || team_id == 0 || key.empty()) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> g(exchange_state_mutex);
+  if (outbound_events.size() >= MAX_OUTBOUND_EVENTS) {
+    return false;
+  }
+
+  OutboundEvent ev;
+  ev.type = "team_reward_purchase";
+  ev.team_id = team_id;
+  ev.key = key;
+  ev.points = points;
+  ev.reward_flag = reward_flag;
+  outbound_events.emplace_back(std::move(ev));
+  return true;
+}
+
+bool enqueue_team_flag_update(uint32_t team_id, const void* flag_data, size_t size) {
+  auto cfg = get_config();
+  if (!cfg.enabled || !cfg.relay_team_actions || team_id == 0 || !flag_data || !size) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> g(exchange_state_mutex);
+  if (outbound_events.size() >= MAX_OUTBOUND_EVENTS) {
+    return false;
+  }
+
+  OutboundEvent ev;
+  ev.type = "team_flag_update";
+  ev.team_id = team_id;
+  ev.flag_data_hex = hex_encode(flag_data, size);
+  outbound_events.emplace_back(std::move(ev));
+  return true;
+}
+
 bool enqueue_team_member_remove(uint32_t account_id) {
   auto cfg = get_config();
   if (!cfg.enabled || !cfg.relay_team_actions) {
@@ -642,6 +779,55 @@ static std::string exchange_body_for_current_state(const Config& cfg) {
             ev.account_id,
             json_escape(ev.name),
             ev.points_delta);
+
+      } else if (ev.type == "team_rename") {
+        parts += std::format(
+            "{{\"seq\":{},\"type\":\"team_rename\",\"team_namespace\":\"{}\",\"team_id\":{},\"new_name\":\"{}\"}}",
+            ev.seq,
+            json_escape(cfg.team_namespace),
+            ev.team_id,
+            json_escape(ev.new_name));
+
+      } else if (ev.type == "team_disband") {
+        parts += std::format(
+            "{{\"seq\":{},\"type\":\"team_disband\",\"team_namespace\":\"{}\",\"team_id\":{}}}",
+            ev.seq,
+            json_escape(cfg.team_namespace),
+            ev.team_id);
+
+      } else if (ev.type == "team_member_flags_update") {
+        parts += std::format(
+            "{{\"seq\":{},\"type\":\"team_member_flags_update\",\"team_namespace\":\"{}\",\"account_id\":{},\"flags\":{}}}",
+            ev.seq,
+            json_escape(cfg.team_namespace),
+            ev.account_id,
+            ev.flags);
+
+      } else if (ev.type == "team_master_transfer") {
+        parts += std::format(
+            "{{\"seq\":{},\"type\":\"team_master_transfer\",\"team_namespace\":\"{}\",\"master_account_id\":{},\"new_master_account_id\":{}}}",
+            ev.seq,
+            json_escape(cfg.team_namespace),
+            ev.master_account_id,
+            ev.new_master_account_id);
+
+      } else if (ev.type == "team_reward_purchase") {
+        parts += std::format(
+            "{{\"seq\":{},\"type\":\"team_reward_purchase\",\"team_namespace\":\"{}\",\"team_id\":{},\"key\":\"{}\",\"points\":{},\"reward_flag\":{}}}",
+            ev.seq,
+            json_escape(cfg.team_namespace),
+            ev.team_id,
+            json_escape(ev.key),
+            ev.points,
+            ev.reward_flag);
+
+      } else if (ev.type == "team_flag_update") {
+        parts += std::format(
+            "{{\"seq\":{},\"type\":\"team_flag_update\",\"team_namespace\":\"{}\",\"team_id\":{},\"flag_data_hex\":\"{}\"}}",
+            ev.seq,
+            json_escape(cfg.team_namespace),
+            ev.team_id,
+            ev.flag_data_hex);
 
       } else if (ev.type == "team_member_remove") {
         parts += std::format(
