@@ -888,6 +888,7 @@ void ServerState::load_config_early() {
   AccountSync::configure_from_json(this->config_json->get("AccountSync", phosg::JSON::dict()));
   AccountSync::start_login_lock_heartbeat_task(*this->io_context);
   TeamSync::configure_from_json(this->config_json->get("TeamSync", phosg::JSON::dict()));
+  TeamSync::start_exchange_task(*this->io_context);
   this->psopeeps_dcv2_exp_multiplier = this->config_json->get_int("PsoPeepsDCV2EXPMultiplier", 5);
   if ((this->psopeeps_dcv2_exp_multiplier != 5) && (this->psopeeps_dcv2_exp_multiplier != 10)) {
     throw std::runtime_error("PsoPeepsDCV2EXPMultiplier must be 5 or 10");
