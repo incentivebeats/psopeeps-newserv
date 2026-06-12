@@ -6904,16 +6904,39 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
             send_command(added_c, 0x04EA, 0x00000005);
 
           } else {
-            added_c->login->account->bb_team_id = team->team_id;
-            added_c->login->account->save();
-            s->team_index->add_member(
-                team->team_id,
-                added_c->login->account->account_id,
-                added_c->character_file()->disp.visual.name.decode(added_c->language()));
+            const uint32_t added_account_id = added_c->login->account->account_id;
+            const std::string added_name = added_c->character_file()->disp.visual.name.decode(added_c->language());
+
+            if (TeamSync::relay_team_actions_enabled()) {
+              if (!TeamSync::enqueue_team_member_add(team->team_id, added_account_id, added_name)) {
+                send_command(c, 0x04EA, 0x00000006);
+                send_command(added_c, 0x04EA, 0x00000006);
+                break;
+              }
+
+              if (!co_await TeamSync::exchange_once_now()) {
+                send_command(c, 0x04EA, 0x00000006);
+                send_command(added_c, 0x04EA, 0x00000006);
+                break;
+              }
+
+              auto refreshed_added_team = s->team_index->get_by_account_id(added_account_id);
+              if (!refreshed_added_team || refreshed_added_team->team_id != team->team_id) {
+                send_command(c, 0x04EA, 0x00000006);
+                send_command(added_c, 0x04EA, 0x00000006);
+                break;
+              }
+
+            } else {
+              added_c->login->account->bb_team_id = team->team_id;
+              added_c->login->account->save();
+              s->team_index->add_member(team->team_id, added_account_id, added_name);
+            }
+
             send_command(c, 0x04EA, 0x00000000);
             send_command(added_c, 0x04EA, 0x00000000);
             send_team_metadata_change_notifications(
-                s, team, added_c->login->account->account_id, TeamMetadataChange::TEAM_MEMBER_COUNT);
+                s, team, added_account_id, TeamMetadataChange::TEAM_MEMBER_COUNT);
           }
         }
       }
@@ -6926,10 +6949,30 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
         bool is_removing_self = (cmd.guild_card_number == c->login->account->account_id);
         if (is_removing_self ||
             (team->members.at(c->login->account->account_id).privilege_level() >= 0x30)) {
-          s->team_index->remove_member(cmd.guild_card_number);
-          auto removed_account = s->account_index->from_account_id(cmd.guild_card_number);
-          removed_account->bb_team_id = 0;
-          removed_account->save();
+          if (TeamSync::relay_team_actions_enabled()) {
+            if (!TeamSync::enqueue_team_member_remove(cmd.guild_card_number)) {
+              send_command(c, 0x06EA, 0x00000001);
+              break;
+            }
+
+            if (!co_await TeamSync::exchange_once_now()) {
+              send_command(c, 0x06EA, 0x00000001);
+              break;
+            }
+
+            auto removed_account = s->account_index->from_account_id(cmd.guild_card_number);
+            if (removed_account->bb_team_id != 0) {
+              send_command(c, 0x06EA, 0x00000001);
+              break;
+            }
+
+          } else {
+            s->team_index->remove_member(cmd.guild_card_number);
+            auto removed_account = s->account_index->from_account_id(cmd.guild_card_number);
+            removed_account->bb_team_id = 0;
+            removed_account->save();
+          }
+
           send_command(c, 0x06EA, 0x00000000);
 
           std::shared_ptr<Client> removed_c;

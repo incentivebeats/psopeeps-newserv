@@ -35,6 +35,8 @@ bool relay_team_chat_enabled();
 bool relay_team_actions_enabled();
 
 bool enqueue_team_create(const std::string& team_name, uint32_t creator_account_id, const std::string& creator_name);
+bool enqueue_team_member_add(uint32_t team_id, uint32_t account_id, const std::string& name);
+bool enqueue_team_member_remove(uint32_t account_id);
 asio::awaitable<bool> exchange_once_now();
 
 using CanonicalTeamStateCallback = std::function<void(const phosg::JSON&)>;

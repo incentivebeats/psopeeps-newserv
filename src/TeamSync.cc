@@ -35,6 +35,10 @@ struct OutboundEvent {
   uint64_t seq = 0;
   std::string type;
 
+  uint32_t team_id = 0;
+  uint32_t account_id = 0;
+  std::string name;
+
   std::string team_name;
   uint32_t creator_account_id = 0;
   std::string creator_name;
@@ -480,6 +484,58 @@ bool enqueue_team_create(const std::string& team_name, uint32_t creator_account_
   return true;
 }
 
+bool enqueue_team_member_add(uint32_t team_id, uint32_t account_id, const std::string& name) {
+  auto cfg = get_config();
+  if (!cfg.enabled || !cfg.relay_team_actions) {
+    return false;
+  }
+  if (team_id == 0 || account_id == 0 || name.empty()) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> g(exchange_state_mutex);
+  if (outbound_events.size() >= MAX_OUTBOUND_EVENTS) {
+    std::fprintf(stderr,
+        "[TeamSync] warning outbound_event_dropped reason=queue_full source=%s team_namespace=%s type=team_member_add\n",
+        source_label(cfg).c_str(),
+        cfg.team_namespace.c_str());
+    return false;
+  }
+
+  OutboundEvent ev;
+  ev.type = "team_member_add";
+  ev.team_id = team_id;
+  ev.account_id = account_id;
+  ev.name = name;
+  outbound_events.emplace_back(std::move(ev));
+  return true;
+}
+
+bool enqueue_team_member_remove(uint32_t account_id) {
+  auto cfg = get_config();
+  if (!cfg.enabled || !cfg.relay_team_actions) {
+    return false;
+  }
+  if (account_id == 0) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> g(exchange_state_mutex);
+  if (outbound_events.size() >= MAX_OUTBOUND_EVENTS) {
+    std::fprintf(stderr,
+        "[TeamSync] warning outbound_event_dropped reason=queue_full source=%s team_namespace=%s type=team_member_remove\n",
+        source_label(cfg).c_str(),
+        cfg.team_namespace.c_str());
+    return false;
+  }
+
+  OutboundEvent ev;
+  ev.type = "team_member_remove";
+  ev.account_id = account_id;
+  outbound_events.emplace_back(std::move(ev));
+  return true;
+}
+
 void set_canonical_team_state_callback(CanonicalTeamStateCallback cb) {
   std::lock_guard<std::mutex> g(canonical_team_state_callback_mutex);
   canonical_team_state_callback = std::move(cb);
@@ -522,6 +578,22 @@ static std::string exchange_body_for_current_state(const Config& cfg) {
             ev.creator_account_id,
             json_escape(ev.creator_name),
             json_escape(ev.team_name));
+
+      } else if (ev.type == "team_member_add") {
+        parts += std::format(
+            "{{\"seq\":{},\"type\":\"team_member_add\",\"team_namespace\":\"{}\",\"team_id\":{},\"account_id\":{},\"name\":\"{}\"}}",
+            ev.seq,
+            json_escape(cfg.team_namespace),
+            ev.team_id,
+            ev.account_id,
+            json_escape(ev.name));
+
+      } else if (ev.type == "team_member_remove") {
+        parts += std::format(
+            "{{\"seq\":{},\"type\":\"team_member_remove\",\"team_namespace\":\"{}\",\"account_id\":{}}}",
+            ev.seq,
+            json_escape(cfg.team_namespace),
+            ev.account_id);
       }
     }
 
