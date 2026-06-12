@@ -32,6 +32,9 @@ void configure_from_json(const phosg::JSON& json);
 
 bool enabled();
 bool relay_team_chat_enabled();
+bool relay_team_actions_enabled();
+
+void enqueue_team_create(const std::string& team_name, uint32_t creator_account_id, const std::string& creator_name);
 
 using CanonicalTeamStateCallback = std::function<void(const phosg::JSON&)>;
 void set_canonical_team_state_callback(CanonicalTeamStateCallback cb);
