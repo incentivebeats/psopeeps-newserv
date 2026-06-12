@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <string>
@@ -39,6 +40,12 @@ bool enqueue_team_create(const std::string& team_name, uint32_t creator_account_
 bool enqueue_team_member_add(uint32_t team_id, uint32_t account_id, const std::string& name);
 bool enqueue_team_member_update(uint32_t account_id, const std::string& name, int64_t points_delta);
 bool enqueue_team_member_remove(uint32_t account_id);
+bool enqueue_team_rename(uint32_t team_id, const std::string& new_name);
+bool enqueue_team_disband(uint32_t team_id);
+bool enqueue_team_member_flags_update(uint32_t account_id, uint8_t flags);
+bool enqueue_team_master_transfer(uint32_t master_account_id, uint32_t new_master_account_id);
+bool enqueue_team_reward_purchase(uint32_t team_id, const std::string& key, uint32_t points, uint32_t reward_flag);
+bool enqueue_team_flag_update(uint32_t team_id, const void* flag_data, size_t size);
 asio::awaitable<bool> exchange_once_now();
 
 using CanonicalTeamStateCallback = std::function<void(const phosg::JSON&)>;

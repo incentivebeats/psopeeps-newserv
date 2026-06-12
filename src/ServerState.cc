@@ -1663,6 +1663,8 @@ void ServerState::load_teams() {
       std::string canonical_signature;
       canonical_signature += "next_team_id=" +
           std::to_string(canonical_team_state.get_int("next_team_id", canonical_team_state.get_int("NextTeamID", 0))) + "\n";
+      bool empty_is_authoritative = canonical_team_state.get_bool("empty_is_authoritative", false);
+      canonical_signature += "empty_is_authoritative=" + std::to_string(empty_is_authoritative ? 1 : 0) + "\n";
       canonical_signature += "teams=" + std::to_string(teams_json.size()) + "\n";
 
       std::unordered_map<uint32_t, uint32_t> account_id_to_team_id;
@@ -1674,6 +1676,13 @@ void ServerState::load_teams() {
         }
 
         canonical_signature += "team=" + std::to_string(team_id) + "\n";
+        canonical_signature += "name=" + team_json.get_string("name", team_json.get_string("Name", "")) + "\n";
+        canonical_signature += "reward_flags=" + std::to_string(team_json.get_int("reward_flags", team_json.get_int("RewardFlags", 0))) + "\n";
+        canonical_signature += "spent_points=" + std::to_string(team_json.get_int("spent_points", team_json.get_int("SpentPoints", 0))) + "\n";
+        canonical_signature += "flag_data_hex=" + team_json.get_string("flag_data_hex", "") + "\n";
+        for (const auto& key_json_p : team_json.get("reward_keys", phosg::JSON::list()).as_list()) {
+          canonical_signature += "reward_key=" + key_json_p->as_string() + "\n";
+        }
 
         const auto& members_json = team_json.get("members", phosg::JSON::list()).as_list();
         for (const auto& member_json_p : members_json) {
@@ -1681,10 +1690,11 @@ void ServerState::load_teams() {
           uint32_t account_id = member_json.get_int("account_id", member_json.get_int("AccountID", 0));
           uint32_t flags = member_json.get_int("flags", member_json.get_int("Flags", 0));
           uint32_t points = member_json.get_int("points", member_json.get_int("Points", 0));
+          std::string name = member_json.get_string("name", member_json.get_string("Name", ""));
           if (account_id) {
             account_id_to_team_id.emplace(account_id, team_id);
             canonical_signature += "member=" + std::to_string(account_id) + ":" +
-                std::to_string(flags) + ":" + std::to_string(points) + "\n";
+                std::to_string(flags) + ":" + std::to_string(points) + ":" + name + "\n";
           }
         }
       }
@@ -1699,7 +1709,7 @@ void ServerState::load_teams() {
       }
 
       if (teams_json.empty()) {
-        if (local_team_count || local_account_team_refs) {
+        if (!empty_is_authoritative && (local_team_count || local_account_team_refs)) {
           std::string rejection_signature = canonical_signature +
               "local_team_count=" + std::to_string(local_team_count) +
               ";local_account_team_refs=" + std::to_string(local_account_team_refs);

@@ -7027,12 +7027,17 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
     case 0x0FEA: { // Set team flag
       auto team = c->team();
       if (team && team->members.at(c->login->account->account_id).check_flag(TeamIndex::Team::Member::Flag::IS_MASTER)) {
+        const auto& cmd = check_size_t<C_SetTeamFlag_BB_0FEA>(msg.data);
         if (TeamSync::relay_team_actions_enabled()) {
-          // TeamSync phase 1 is membership-only. Do not mutate local-only team
-          // metadata that would be erased by the next authority apply.
+          if (TeamSync::enqueue_team_flag_update(team->team_id, &cmd.flag_data, sizeof(cmd.flag_data)) &&
+              co_await TeamSync::exchange_once_now()) {
+            auto refreshed_team = s->team_index->get_by_id(team->team_id);
+            if (refreshed_team) {
+              send_team_metadata_change_notifications(s, refreshed_team, 0, TeamMetadataChange::FLAG_DATA);
+            }
+          }
           break;
         }
-        const auto& cmd = check_size_t<C_SetTeamFlag_BB_0FEA>(msg.data);
         s->team_index->set_flag_data(team->team_id, cmd.flag_data);
         send_team_metadata_change_notifications(s, team, 0, TeamMetadataChange::FLAG_DATA);
       }
@@ -7042,9 +7047,12 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
       auto team = c->team();
       if (team && team->members.at(c->login->account->account_id).check_flag(TeamIndex::Team::Member::Flag::IS_MASTER)) {
         if (TeamSync::relay_team_actions_enabled()) {
-          // TeamSync phase 1 is membership-only. Disband is not yet routed
-          // through the authority.
-          send_command(c, 0x10EA, 0x00000001);
+          if (TeamSync::enqueue_team_disband(team->team_id) && co_await TeamSync::exchange_once_now()) {
+            send_command(c, 0x10EA, 0x00000000);
+            send_team_metadata_change_notifications(s, team, 0, TeamMetadataChange::TEAM_DISBANDED);
+          } else {
+            send_command(c, 0x10EA, 0x00000001);
+          }
           break;
         }
         s->team_index->disband(team->team_id);
@@ -7062,9 +7070,39 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
         }
 
         if (TeamSync::relay_team_actions_enabled()) {
-          // TeamSync phase 1 is membership-only. Privilege/master changes are
-          // not yet routed through the authority.
-          send_command(c, 0x11EA, 0x00000005);
+          if (!team->members.at(c->login->account->account_id).check_flag(TeamIndex::Team::Member::Flag::IS_MASTER)) {
+            send_command(c, 0x11EA, 0x00000005);
+            break;
+          }
+
+          bool enqueued = false;
+          switch (msg.flag) {
+            case 0x00:
+              enqueued = TeamSync::enqueue_team_member_flags_update(cmd.guild_card_number, 0);
+              break;
+            case 0x30:
+              enqueued = TeamSync::enqueue_team_member_flags_update(cmd.guild_card_number, 0x02);
+              break;
+            case 0x40:
+              enqueued = TeamSync::enqueue_team_master_transfer(c->login->account->account_id, cmd.guild_card_number);
+              break;
+            default:
+              throw std::runtime_error("invalid privilege level");
+          }
+
+          if (enqueued && co_await TeamSync::exchange_once_now()) {
+            send_command(c, 0x11EA, 0x00000000);
+            auto refreshed_team = s->team_index->get_by_id(team->team_id);
+            if (refreshed_team) {
+              send_team_metadata_change_notifications(
+                  s,
+                  refreshed_team,
+                  cmd.guild_card_number,
+                  (msg.flag == 0x40) ? TeamMetadataChange::TEAM_MASTER : static_cast<TeamMetadataChange>(0));
+            }
+          } else {
+            send_command(c, 0x11EA, 0x00000005);
+          }
           break;
         }
 
@@ -7126,8 +7164,23 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
         }
 
         if (TeamSync::relay_team_actions_enabled()) {
-          // TeamSync phase 1 is membership-only. Rewards/points are not yet
-          // routed through the authority.
+          if (!TeamSync::enqueue_team_reward_purchase(
+                  team->team_id,
+                  reward.key,
+                  reward.team_points,
+                  static_cast<uint32_t>(reward.reward_flag)) ||
+              !co_await TeamSync::exchange_once_now()) {
+            break;
+          }
+
+          auto refreshed_team = s->team_index->get_by_id(team->team_id);
+          if (reward.reward_flag != TeamIndex::Team::RewardFlag::NONE && refreshed_team) {
+            send_team_metadata_change_notifications(s, refreshed_team, 0, TeamMetadataChange::REWARD_FLAGS);
+          }
+          if (!reward.reward_item.empty()) {
+            c->bank_file()->add_item(reward.reward_item, *s->item_stack_limits(c->version()));
+            c->print_bank();
+          }
           break;
         }
 
@@ -7156,9 +7209,15 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
       } else if (s->team_index->get_by_name(new_team_name)) {
         send_command(c, 0x1FEA, 0x00000002);
       } else if (TeamSync::relay_team_actions_enabled()) {
-        // TeamSync phase 1 is membership-only. Rename is not yet routed
-        // through the authority.
-        send_command(c, 0x1FEA, 0x00000001);
+        if (TeamSync::enqueue_team_rename(team->team_id, new_team_name) && co_await TeamSync::exchange_once_now()) {
+          send_command(c, 0x1FEA, 0x00000000);
+          auto refreshed_team = s->team_index->get_by_id(team->team_id);
+          if (refreshed_team) {
+            send_team_metadata_change_notifications(s, refreshed_team, 0, TeamMetadataChange::TEAM_NAME);
+          }
+        } else {
+          send_command(c, 0x1FEA, 0x00000001);
+        }
       } else {
         s->team_index->rename(team->team_id, new_team_name);
         send_command(c, 0x1FEA, 0x00000000);

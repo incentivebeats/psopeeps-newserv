@@ -5085,8 +5085,8 @@ static void on_exchange_item_for_team_points_bb(std::shared_ptr<Client> c, Subco
 
   auto s = c->require_server_state();
   if (TeamSync::relay_team_actions_enabled() && !TeamSync::relay_team_points_enabled()) {
-    // TeamSync phase 1 is membership-only. Team points are not yet routed
-    // through the authority, so do not consume the item locally.
+    // TeamSync points relay is disabled, so do not consume the item locally
+    // for a local-only point mutation that authority sync may overwrite.
     return;
   }
 
