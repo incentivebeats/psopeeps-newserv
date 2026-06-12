@@ -28,6 +28,7 @@
 
 #include "StaticGameData.hh"
 #include "Text.hh"
+#include "TeamSync.hh"
 #include <ctime>
 #include "BrutalPeeps.hh"
 #include "AccountSync.hh"
@@ -6848,7 +6849,29 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
         send_command(c, 0x02EA, 0x00000001);
       } else {
         std::string player_name = c->character_file()->disp.visual.name.decode(c->language());
-        auto team = s->team_index->create(team_name, c->login->account->account_id, player_name);
+        std::shared_ptr<const TeamIndex::Team> team;
+
+        if (TeamSync::relay_team_actions_enabled()) {
+          if (!TeamSync::enqueue_team_create(team_name, c->login->account->account_id, player_name)) {
+            send_command(c, 0x02EA, 0x00000001);
+            break;
+          }
+
+          if (!co_await TeamSync::exchange_once_now()) {
+            send_command(c, 0x02EA, 0x00000001);
+            break;
+          }
+
+          team = s->team_index->get_by_account_id(c->login->account->account_id);
+          if (!team || (team->name != team_name)) {
+            send_command(c, 0x02EA, 0x00000001);
+            break;
+          }
+
+        } else {
+          team = s->team_index->create(team_name, c->login->account->account_id, player_name);
+        }
+
         c->login->account->bb_team_id = team->team_id;
         c->login->account->save();
 
@@ -6881,16 +6904,39 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
             send_command(added_c, 0x04EA, 0x00000005);
 
           } else {
-            added_c->login->account->bb_team_id = team->team_id;
-            added_c->login->account->save();
-            s->team_index->add_member(
-                team->team_id,
-                added_c->login->account->account_id,
-                added_c->character_file()->disp.visual.name.decode(added_c->language()));
+            const uint32_t added_account_id = added_c->login->account->account_id;
+            const std::string added_name = added_c->character_file()->disp.visual.name.decode(added_c->language());
+
+            if (TeamSync::relay_team_actions_enabled()) {
+              if (!TeamSync::enqueue_team_member_add(team->team_id, added_account_id, added_name)) {
+                send_command(c, 0x04EA, 0x00000006);
+                send_command(added_c, 0x04EA, 0x00000006);
+                break;
+              }
+
+              if (!co_await TeamSync::exchange_once_now()) {
+                send_command(c, 0x04EA, 0x00000006);
+                send_command(added_c, 0x04EA, 0x00000006);
+                break;
+              }
+
+              auto refreshed_added_team = s->team_index->get_by_account_id(added_account_id);
+              if (!refreshed_added_team || refreshed_added_team->team_id != team->team_id) {
+                send_command(c, 0x04EA, 0x00000006);
+                send_command(added_c, 0x04EA, 0x00000006);
+                break;
+              }
+
+            } else {
+              added_c->login->account->bb_team_id = team->team_id;
+              added_c->login->account->save();
+              s->team_index->add_member(team->team_id, added_account_id, added_name);
+            }
+
             send_command(c, 0x04EA, 0x00000000);
             send_command(added_c, 0x04EA, 0x00000000);
             send_team_metadata_change_notifications(
-                s, team, added_c->login->account->account_id, TeamMetadataChange::TEAM_MEMBER_COUNT);
+                s, team, added_account_id, TeamMetadataChange::TEAM_MEMBER_COUNT);
           }
         }
       }
@@ -6903,10 +6949,30 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
         bool is_removing_self = (cmd.guild_card_number == c->login->account->account_id);
         if (is_removing_self ||
             (team->members.at(c->login->account->account_id).privilege_level() >= 0x30)) {
-          s->team_index->remove_member(cmd.guild_card_number);
-          auto removed_account = s->account_index->from_account_id(cmd.guild_card_number);
-          removed_account->bb_team_id = 0;
-          removed_account->save();
+          if (TeamSync::relay_team_actions_enabled()) {
+            if (!TeamSync::enqueue_team_member_remove(cmd.guild_card_number)) {
+              send_command(c, 0x06EA, 0x00000001);
+              break;
+            }
+
+            if (!co_await TeamSync::exchange_once_now()) {
+              send_command(c, 0x06EA, 0x00000001);
+              break;
+            }
+
+            auto removed_account = s->account_index->from_account_id(cmd.guild_card_number);
+            if (removed_account->bb_team_id != 0) {
+              send_command(c, 0x06EA, 0x00000001);
+              break;
+            }
+
+          } else {
+            s->team_index->remove_member(cmd.guild_card_number);
+            auto removed_account = s->account_index->from_account_id(cmd.guild_card_number);
+            removed_account->bb_team_id = 0;
+            removed_account->save();
+          }
+
           send_command(c, 0x06EA, 0x00000000);
 
           std::shared_ptr<Client> removed_c;
@@ -6961,6 +7027,11 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
     case 0x0FEA: { // Set team flag
       auto team = c->team();
       if (team && team->members.at(c->login->account->account_id).check_flag(TeamIndex::Team::Member::Flag::IS_MASTER)) {
+        if (TeamSync::relay_team_actions_enabled()) {
+          // TeamSync phase 1 is membership-only. Do not mutate local-only team
+          // metadata that would be erased by the next authority apply.
+          break;
+        }
         const auto& cmd = check_size_t<C_SetTeamFlag_BB_0FEA>(msg.data);
         s->team_index->set_flag_data(team->team_id, cmd.flag_data);
         send_team_metadata_change_notifications(s, team, 0, TeamMetadataChange::FLAG_DATA);
@@ -6970,6 +7041,12 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
     case 0x10EA: { // Disband team
       auto team = c->team();
       if (team && team->members.at(c->login->account->account_id).check_flag(TeamIndex::Team::Member::Flag::IS_MASTER)) {
+        if (TeamSync::relay_team_actions_enabled()) {
+          // TeamSync phase 1 is membership-only. Disband is not yet routed
+          // through the authority.
+          send_command(c, 0x10EA, 0x00000001);
+          break;
+        }
         s->team_index->disband(team->team_id);
         send_command(c, 0x10EA, 0x00000000);
         send_team_metadata_change_notifications(s, team, 0, TeamMetadataChange::TEAM_DISBANDED);
@@ -6982,6 +7059,13 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
         auto& cmd = check_size_t<C_ChangeTeamMemberPrivilegeLevel_BB_11EA>(msg.data);
         if (cmd.guild_card_number == c->login->account->account_id) {
           throw std::runtime_error("this command cannot be used to modify your own permissions");
+        }
+
+        if (TeamSync::relay_team_actions_enabled()) {
+          // TeamSync phase 1 is membership-only. Privilege/master changes are
+          // not yet routed through the authority.
+          send_command(c, 0x11EA, 0x00000005);
+          break;
         }
 
         // The client only sends this command with flag = 0x00, 0x30, or 0x40
@@ -7041,6 +7125,12 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
           throw std::runtime_error("team reward already purchased");
         }
 
+        if (TeamSync::relay_team_actions_enabled()) {
+          // TeamSync phase 1 is membership-only. Rewards/points are not yet
+          // routed through the authority.
+          break;
+        }
+
         s->team_index->buy_reward(team->team_id, reward.key, reward.team_points, reward.reward_flag);
 
         if (reward.reward_flag != TeamIndex::Team::RewardFlag::NONE) {
@@ -7065,6 +7155,10 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
         send_command(c, 0x1FEA, 0x00000001);
       } else if (s->team_index->get_by_name(new_team_name)) {
         send_command(c, 0x1FEA, 0x00000002);
+      } else if (TeamSync::relay_team_actions_enabled()) {
+        // TeamSync phase 1 is membership-only. Rename is not yet routed
+        // through the authority.
+        send_command(c, 0x1FEA, 0x00000001);
       } else {
         s->team_index->rename(team->team_id, new_team_name);
         send_command(c, 0x1FEA, 0x00000000);
