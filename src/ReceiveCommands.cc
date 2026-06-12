@@ -28,6 +28,7 @@
 
 #include "StaticGameData.hh"
 #include "Text.hh"
+#include "TeamSync.hh"
 #include <ctime>
 #include "BrutalPeeps.hh"
 #include "AccountSync.hh"
@@ -6851,6 +6852,8 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
         auto team = s->team_index->create(team_name, c->login->account->account_id, player_name);
         c->login->account->bb_team_id = team->team_id;
         c->login->account->save();
+
+        TeamSync::enqueue_team_create(team_name, c->login->account->account_id, player_name);
 
         send_command(c, 0x02EA, 0x00000000);
         send_team_metadata_change_notifications(s, team, c->login->account->account_id, TeamMetadataChange::TEAM_CREATED);
