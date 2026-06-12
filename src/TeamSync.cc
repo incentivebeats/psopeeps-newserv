@@ -312,14 +312,19 @@ static asio::awaitable<phosg::JSON> post_json_with_timeout(
       }
     }
 
-    if (response_code != 200) {
-      throw std::runtime_error(std::format("coordinator returned HTTP {}", response_code));
-    }
     if (content_length > 0x100000) {
       throw std::runtime_error("coordinator response is too large");
     }
 
     std::string response_body = co_await read_http_data(*sock, pending_data, content_length);
+
+    if (response_code != 200) {
+      throw std::runtime_error(std::format(
+          "coordinator returned HTTP {} body={}",
+          response_code,
+          response_body));
+    }
+
     timer->cancel();
     co_return phosg::JSON::parse(response_body);
 
