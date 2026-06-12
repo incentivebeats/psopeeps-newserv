@@ -1648,32 +1648,81 @@ void ServerState::load_teams() {
   config_log.info_f("Indexing teams");
   this->team_index = std::make_shared<TeamIndex>("system/teams", this->team_reward_defs_json);
 
-  TeamSync::set_canonical_team_state_callback([this](const phosg::JSON& canonical_team_state) -> void {
+  auto last_applied_team_sync_signature = std::make_shared<std::string>();
+  auto last_rejected_empty_team_sync_signature = std::make_shared<std::string>();
+
+  TeamSync::set_canonical_team_state_callback([this, last_applied_team_sync_signature, last_rejected_empty_team_sync_signature](
+                                                    const phosg::JSON& canonical_team_state) -> void {
     if (!this->team_index || !this->account_index) {
       return;
     }
 
     try {
-      this->team_index->replace_all_from_authority(canonical_team_state);
+      const auto& teams_json = canonical_team_state.get("teams", phosg::JSON::list()).as_list();
+
+      std::string canonical_signature;
+      canonical_signature += "next_team_id=" +
+          std::to_string(canonical_team_state.get_int("next_team_id", canonical_team_state.get_int("NextTeamID", 0))) + "\n";
+      canonical_signature += "teams=" + std::to_string(teams_json.size()) + "\n";
 
       std::unordered_map<uint32_t, uint32_t> account_id_to_team_id;
-      const auto& teams_json = canonical_team_state.get("teams", phosg::JSON::list()).as_list();
       for (const auto& team_json_p : teams_json) {
         const auto& team_json = *team_json_p;
-        uint32_t team_id = team_json.get_int("team_id", 0);
+        uint32_t team_id = team_json.get_int("team_id", team_json.get_int("TeamID", 0));
         if (!team_id) {
           continue;
         }
+
+        canonical_signature += "team=" + std::to_string(team_id) + "\n";
 
         const auto& members_json = team_json.get("members", phosg::JSON::list()).as_list();
         for (const auto& member_json_p : members_json) {
           const auto& member_json = *member_json_p;
           uint32_t account_id = member_json.get_int("account_id", member_json.get_int("AccountID", 0));
+          uint32_t flags = member_json.get_int("flags", member_json.get_int("Flags", 0));
+          uint32_t points = member_json.get_int("points", member_json.get_int("Points", 0));
           if (account_id) {
             account_id_to_team_id.emplace(account_id, team_id);
+            canonical_signature += "member=" + std::to_string(account_id) + ":" +
+                std::to_string(flags) + ":" + std::to_string(points) + "\n";
           }
         }
       }
+
+      const size_t local_team_count = this->team_index->all().size();
+
+      size_t local_account_team_refs = 0;
+      for (const auto& account : this->account_index->all()) {
+        if (account->bb_team_id) {
+          local_account_team_refs++;
+        }
+      }
+
+      if (teams_json.empty()) {
+        if (local_team_count || local_account_team_refs) {
+          std::string rejection_signature = canonical_signature +
+              "local_team_count=" + std::to_string(local_team_count) +
+              ";local_account_team_refs=" + std::to_string(local_account_team_refs);
+          if (*last_rejected_empty_team_sync_signature != rejection_signature) {
+            config_log.warning_f(
+                "Ignored empty canonical TeamSync team state because local state is non-empty "
+                "(local_teams={}, local_account_team_refs={})",
+                local_team_count,
+                local_account_team_refs);
+            *last_rejected_empty_team_sync_signature = std::move(rejection_signature);
+          }
+          return;
+        }
+
+        *last_applied_team_sync_signature = std::move(canonical_signature);
+        return;
+      }
+
+      if (*last_applied_team_sync_signature == canonical_signature) {
+        return;
+      }
+
+      this->team_index->replace_all_from_authority(canonical_team_state);
 
       size_t account_updates = 0;
       for (const auto& account : this->account_index->all()) {
@@ -1685,6 +1734,9 @@ void ServerState::load_teams() {
           account_updates++;
         }
       }
+
+      *last_applied_team_sync_signature = std::move(canonical_signature);
+      last_rejected_empty_team_sync_signature->clear();
 
       config_log.info_f(
           "Applied canonical TeamSync team state (teams={}, account_updates={})",
