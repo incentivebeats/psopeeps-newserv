@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <string>
 
 #include <asio.hpp>
@@ -31,6 +32,9 @@ void configure_from_json(const phosg::JSON& json);
 
 bool enabled();
 bool relay_team_chat_enabled();
+
+using CanonicalTeamStateCallback = std::function<void(const phosg::JSON&)>;
+void set_canonical_team_state_callback(CanonicalTeamStateCallback cb);
 
 void start_exchange_task(asio::io_context& io_context);
 

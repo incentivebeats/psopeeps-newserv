@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <format>
+#include <functional>
 #include <memory>
 #include <mutex>
 #include <random>
@@ -31,6 +32,9 @@ struct ExchangeState {
 
 static std::mutex exchange_state_mutex;
 static ExchangeState exchange_state;
+
+static std::mutex canonical_team_state_callback_mutex;
+static CanonicalTeamStateCallback canonical_team_state_callback;
 
 static std::string source_label(const Config& cfg) {
   if (!cfg.source.empty()) {
@@ -431,6 +435,22 @@ bool relay_team_chat_enabled() {
   return cfg.enabled && cfg.relay_team_chat;
 }
 
+void set_canonical_team_state_callback(CanonicalTeamStateCallback cb) {
+  std::lock_guard<std::mutex> g(canonical_team_state_callback_mutex);
+  canonical_team_state_callback = std::move(cb);
+}
+
+static void apply_canonical_team_state(const phosg::JSON& canonical_team_state) {
+  CanonicalTeamStateCallback cb;
+  {
+    std::lock_guard<std::mutex> g(canonical_team_state_callback_mutex);
+    cb = canonical_team_state_callback;
+  }
+  if (cb) {
+    cb(canonical_team_state);
+  }
+}
+
 // This helper only builds empty event batches from trusted config fields.
 // Do not extend the format-string JSON path for player-controlled data; use a
 // real JSON object/serializer when team chat events are added.
@@ -466,6 +486,11 @@ static asio::awaitable<void> run_empty_exchange_once(const Config& cfg) {
   uint64_t next_cursor = response.get_int("next_cursor", 0);
   bool truncated = response.get_bool("truncated", false);
   size_t inbound_events = response.get("events", phosg::JSON::list()).as_list().size();
+
+  const auto& canonical_team_state = response.get("canonical_team_state", phosg::JSON::dict());
+  if (!canonical_team_state.as_dict().empty()) {
+    apply_canonical_team_state(canonical_team_state);
+  }
 
   {
     std::lock_guard<std::mutex> g(exchange_state_mutex);
