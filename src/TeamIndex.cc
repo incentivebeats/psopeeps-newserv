@@ -1,5 +1,6 @@
 #include "TeamIndex.hh"
 
+#include <cstring>
 #include <filesystem>
 #include <phosg/Filesystem.hh>
 #include <phosg/Image.hh>
@@ -10,6 +11,27 @@
 #include "ItemData.hh"
 #include "Loggers.hh"
 #include "StaticGameData.hh"
+
+static uint8_t team_sync_hex_value(char ch) {
+  if (ch >= '0' && ch <= '9') {
+    return ch - '0';
+  } else if (ch >= 'a' && ch <= 'f') {
+    return 10 + ch - 'a';
+  } else if (ch >= 'A' && ch <= 'F') {
+    return 10 + ch - 'A';
+  }
+  throw std::runtime_error("invalid hex character");
+}
+
+static void team_sync_decode_hex_to_bytes(const std::string& hex, void* data, size_t size) {
+  if (hex.size() != size * 2) {
+    throw std::runtime_error("incorrect hex data size");
+  }
+  auto* out = reinterpret_cast<uint8_t*>(data);
+  for (size_t z = 0; z < size; z++) {
+    out[z] = (team_sync_hex_value(hex[z * 2]) << 4) | team_sync_hex_value(hex[z * 2 + 1]);
+  }
+}
 
 TeamIndex::Team::Member::Member(const phosg::JSON& json)
     : flags(json.get_int("Flags", 0)), points(json.get_int("Points", 0)), name(json.get_string("Name", "")) {
@@ -482,6 +504,12 @@ void TeamIndex::replace_all_from_authority(const phosg::JSON& canonical_team_sta
     team->spent_points = team_json.get_int("spent_points", 0);
     team->points = 0;
 
+    std::string flag_data_hex = team_json.get_string("flag_data_hex", "");
+    if (!flag_data_hex.empty()) {
+      team->flag_data.reset(new parray<le_uint16_t, 0x20 * 0x20>());
+      team_sync_decode_hex_to_bytes(flag_data_hex, team->flag_data.get(), sizeof(*team->flag_data));
+    }
+
     team->reward_keys.clear();
     for (const auto& key_json_p : team_json.get("reward_keys", phosg::JSON::list()).as_list()) {
       team->reward_keys.emplace(key_json_p->as_string());
@@ -546,6 +574,9 @@ void TeamIndex::replace_all_from_authority(const phosg::JSON& canonical_team_sta
 
   for (const auto& [team_id, team] : this->id_to_team) {
     team->save_config();
+    if (team->flag_data) {
+      team->save_flag();
+    }
   }
 }
 
