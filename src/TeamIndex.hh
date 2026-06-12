@@ -144,6 +144,10 @@ public:
   void change_master(uint32_t master_account_id, uint32_t new_master_account_id);
   void buy_reward(uint32_t team_id, const std::string& key, uint32_t points, Team::RewardFlag reward_flag);
 
+  // Replaces all local BB team state with coordinator-authoritative state.
+  // This updates disk and in-memory indexes immediately.
+  void replace_all_from_authority(const phosg::JSON& canonical_team_state);
+
 protected:
   std::string directory;
   uint32_t next_team_id;
