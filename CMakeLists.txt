@@ -51,6 +51,7 @@ set(SOURCES
     ${CMAKE_CURRENT_SOURCE_DIR}/src/Revision.cc
     src/Account.cc
     src/AccountSync.cc
+    src/TeamSync.cc
     src/AddressTranslator.cc
     src/AFSArchive.cc
     src/AsyncHTTPServer.cc
