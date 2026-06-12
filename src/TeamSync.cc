@@ -453,13 +453,13 @@ bool relay_team_actions_enabled() {
   return cfg.enabled && cfg.relay_team_actions;
 }
 
-void enqueue_team_create(const std::string& team_name, uint32_t creator_account_id, const std::string& creator_name) {
+bool enqueue_team_create(const std::string& team_name, uint32_t creator_account_id, const std::string& creator_name) {
   auto cfg = get_config();
   if (!cfg.enabled || !cfg.relay_team_actions) {
-    return;
+    return false;
   }
   if (team_name.empty() || creator_account_id == 0 || creator_name.empty()) {
-    return;
+    return false;
   }
 
   std::lock_guard<std::mutex> g(exchange_state_mutex);
@@ -468,7 +468,7 @@ void enqueue_team_create(const std::string& team_name, uint32_t creator_account_
         "[TeamSync] warning outbound_event_dropped reason=queue_full source=%s team_namespace=%s type=team_create\n",
         source_label(cfg).c_str(),
         cfg.team_namespace.c_str());
-    return;
+    return false;
   }
 
   OutboundEvent ev;
@@ -477,6 +477,7 @@ void enqueue_team_create(const std::string& team_name, uint32_t creator_account_
   ev.creator_account_id = creator_account_id;
   ev.creator_name = creator_name;
   outbound_events.emplace_back(std::move(ev));
+  return true;
 }
 
 void set_canonical_team_state_callback(CanonicalTeamStateCallback cb) {
@@ -616,6 +617,37 @@ static asio::awaitable<void> run_empty_exchange_once(const Config& cfg) {
 
   co_return;
 }
+
+
+asio::awaitable<bool> exchange_once_now() {
+  auto cfg = get_config();
+  if (!exchange_enabled(cfg) || cfg.coordinator_url.empty()) {
+    co_return false;
+  }
+
+  try {
+    bool was_bootstrapped = get_exchange_state().bootstrapped;
+    co_await run_empty_exchange_once(cfg);
+
+    // First exchange after startup only bootstraps cursor/seq. Run once more so
+    // newly queued team_create events are actually sent before the client gets
+    // success.
+    if (!was_bootstrapped) {
+      co_await run_empty_exchange_once(cfg);
+    }
+
+    co_return true;
+
+  } catch (const std::exception& e) {
+    std::fprintf(stderr,
+        "[TeamSync] warning exchange_once_failed source=%s team_namespace=%s error=%s\n",
+        source_label(cfg).c_str(),
+        cfg.team_namespace.c_str(),
+        e.what());
+    co_return false;
+  }
+}
+
 
 static asio::awaitable<void> exchange_task() {
   for (;;) {

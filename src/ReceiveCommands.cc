@@ -6849,11 +6849,31 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
         send_command(c, 0x02EA, 0x00000001);
       } else {
         std::string player_name = c->character_file()->disp.visual.name.decode(c->language());
-        auto team = s->team_index->create(team_name, c->login->account->account_id, player_name);
+        std::shared_ptr<const TeamIndex::Team> team;
+
+        if (TeamSync::relay_team_actions_enabled()) {
+          if (!TeamSync::enqueue_team_create(team_name, c->login->account->account_id, player_name)) {
+            send_command(c, 0x02EA, 0x00000001);
+            break;
+          }
+
+          if (!co_await TeamSync::exchange_once_now()) {
+            send_command(c, 0x02EA, 0x00000001);
+            break;
+          }
+
+          team = s->team_index->get_by_account_id(c->login->account->account_id);
+          if (!team || (team->name != team_name)) {
+            send_command(c, 0x02EA, 0x00000001);
+            break;
+          }
+
+        } else {
+          team = s->team_index->create(team_name, c->login->account->account_id, player_name);
+        }
+
         c->login->account->bb_team_id = team->team_id;
         c->login->account->save();
-
-        TeamSync::enqueue_team_create(team_name, c->login->account->account_id, player_name);
 
         send_command(c, 0x02EA, 0x00000000);
         send_team_metadata_change_notifications(s, team, c->login->account->account_id, TeamMetadataChange::TEAM_CREATED);
