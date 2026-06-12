@@ -99,7 +99,7 @@ set(SOURCES
     src/LevelTable.cc
     src/Lobby.cc
     src/Loggers.cc
-    src/MagEvolutionTable.cc
+    src/MagMetadataTable.cc
     src/Main.cc
     src/Map.cc
     src/Menu.cc
@@ -126,9 +126,11 @@ set(SOURCES
     src/ServerShell.cc
     src/ServerState.cc
     src/ShellCommands.cc
+    src/ShopRandomSets.cc
     src/SignalWatcher.cc
     src/StaticGameData.cc
     src/TeamIndex.cc
+    src/TekkerAdjustmentSet.cc
     src/Text.cc
     src/TextIndex.cc
     src/Version.cc

@@ -6057,12 +6057,16 @@ static void on_quest_F95E_result_bb(std::shared_ptr<Client> c, SubcommandMessage
   auto s = c->require_server_state();
 
   size_t count = (cmd.type > 0x03) ? 1 : (static_cast<size_t>(l->difficulty) + 1);
+  c->log.info_f("Creating {} F95E result items", count);
   for (size_t z = 0; z < count; z++) {
     const auto& results = s->quest_F95E_results.at(cmd.type).at(static_cast<size_t>(l->difficulty));
     if (results.empty()) {
       throw std::runtime_error("invalid result type");
     }
     ItemData item = (results.size() == 1) ? results[0] : results[l->rand_crypt->next() % results.size()];
+    if (c->log.should_log(phosg::LogLevel::L_INFO)) {
+      c->log.info_f("Chose F95E result item {}", item.hex());
+    }
     if (item.data1[0] == 0x04) { // Meseta
       // TODO: What is the right amount of Meseta to use here? Presumably it should be random within a certain range,
       // but it's not obvious what that range should be.
@@ -6075,6 +6079,10 @@ static void on_quest_F95E_result_bb(std::shared_ptr<Client> c, SubcommandMessage
 
     item.id = l->generate_item_id(0xFF);
     l->add_item(cmd.floor, item, cmd.pos, nullptr, nullptr, 0x100F);
+
+    if (c->log.should_log(phosg::LogLevel::L_INFO)) {
+      c->log.info_f("Item created as {}", item.hex());
+    }
 
     send_drop_stacked_item_to_lobby(l, item, cmd.floor, cmd.pos);
   }
@@ -6335,7 +6343,7 @@ static void on_upgrade_weapon_attribute_bb(std::shared_ptr<Client> c, Subcommand
     send_destroy_item_to_lobby(c, payment_item.id, cmd.payment_count);
 
     item.data1[attribute_index] = cmd.attribute;
-    item.data1[attribute_index + 1] += new_attr_value;
+    item.data1[attribute_index + 1] = new_attr_value;
 
     send_destroy_item_to_lobby(c, item.id, 1);
     send_create_inventory_item_to_lobby(c, c->lobby_client_id, item);

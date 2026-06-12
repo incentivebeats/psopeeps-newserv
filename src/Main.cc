@@ -2396,6 +2396,136 @@ Action a_encode_item_parameter_table(
       write_output_data(args, data, nullptr);
     });
 
+Action a_decode_mag_metadata_table(
+    "decode-mag-metadata-table", "\
+  decode-mag-metadata-table [INPUT-FILENAME [OUTPUT-FILENAME]] [OPTIONS...]\n\
+    Converts an ItemMagEdit file into a JSON mag metadata file. A version\n\
+    option is required. Expects compressed input (a .prs file) by default; use\n\
+    --decompressed if the input is not compressed.\n",
+    +[](phosg::Arguments& args) {
+      auto input_data = read_input_data(args);
+      if (!args.get<bool>("decompressed")) {
+        input_data = prs_decompress(input_data);
+      }
+      auto data = std::make_shared<std::string>(std::move(input_data));
+      auto table = MagMetadataTable::from_binary(data, get_cli_version(args, Version::BB_V4));
+      auto json = table->json();
+      auto serialized = json.serialize(phosg::JSON::SerializeOption::FORMAT | phosg::JSON::SerializeOption::SORT_DICT_KEYS);
+      write_output_data(args, serialized, nullptr);
+    });
+
+Action a_encode_mag_metadata_table(
+    "encode-mag-metadata-table", "\
+  encode-mag-metadata-table [INPUT-FILENAME [OUTPUT-FILENAME]] [OPTIONS...]\n\
+    Converts a JSON mag metadata file into an ItemMagEdit file compatible with\n\
+    the game client. A version option is required. By default the output will\n\
+    be compressed, as the client expects; use --decompressed to get\n\
+    uncompressed output.\n",
+    +[](phosg::Arguments& args) {
+      auto json = phosg::JSON::parse(read_input_data(args));
+      auto table = MagMetadataTable::from_json(json);
+      std::string data = table->serialize_binary(get_cli_version(args, Version::BB_V4));
+      if (!args.get<bool>("decompressed")) {
+        data = prs_compress_optimal(data);
+      }
+      write_output_data(args, data, nullptr);
+    });
+
+Action a_decode_tekker_adjustment_set(
+    "decode-tekker-adjustment-set", "\
+  decode-tekker-adjustment-set [INPUT-FILENAME [OUTPUT-FILENAME]] [OPTIONS]\n\
+    Converts a JudgeItem.rel file into a JSON tekker adjustment set. Use\n\
+    --big-endian if the .rel file is from PSO GC.\n",
+    +[](phosg::Arguments& args) {
+      auto input_data = read_input_data(args);
+      TekkerAdjustmentSet table(input_data, args.get<bool>("big-endian"));
+      auto json = table.json();
+      auto serialized = json.serialize(phosg::JSON::SerializeOption::FORMAT | phosg::JSON::SerializeOption::SORT_DICT_KEYS);
+      write_output_data(args, serialized, nullptr);
+    });
+
+Action a_encode_tekker_adjustment_set(
+    "encode-tekker-adjustment-set", "\
+  encode-tekker-adjustment-set [INPUT-FILENAME [OUTPUT-FILENAME]] [OPTIONS]\n\
+    Converts a JSON tekker adjustment set into a JudgeItem.rel file compatible\n\
+    with the game client. Use --big-endian if the .rel file is for PSO GC.\n",
+    +[](phosg::Arguments& args) {
+      TekkerAdjustmentSet table(phosg::JSON::parse(read_input_data(args)));
+      write_output_data(args, table.serialize_binary(args.get<bool>("big-endian")), nullptr);
+    });
+
+Action a_decode_armor_shop_random_set(
+    "decode-armor-shop-random-set", "\
+  decode-armor-shop-random-set [INPUT-FILENAME [OUTPUT-FILENAME]] [OPTIONS]\n\
+    Converts a ArmorRandom.rel file into a JSON armor shop random set. Use\n\
+    --big-endian if the .rel file is from PSO GC.\n",
+    +[](phosg::Arguments& args) {
+      auto input_data = read_input_data(args);
+      ArmorShopRandomSet table(input_data, args.get<bool>("big-endian"));
+      auto json = table.json();
+      auto serialized = json.serialize(phosg::JSON::SerializeOption::FORMAT | phosg::JSON::SerializeOption::SORT_DICT_KEYS);
+      write_output_data(args, serialized, nullptr);
+    });
+
+Action a_encode_armor_shop_random_set(
+    "encode-armor-shop-random-set", "\
+  encode-armor-shop-random-set [INPUT-FILENAME [OUTPUT-FILENAME]] [OPTIONS]\n\
+    Converts a JSON armo shop random set into an ArmorRandom.rel file\n\
+    compatible with the game client. Use --big-endian if the .rel file is for\n\
+    PSO GC.\n",
+    +[](phosg::Arguments& args) {
+      ArmorShopRandomSet table(phosg::JSON::parse(read_input_data(args)));
+      write_output_data(args, table.serialize_binary(args.get<bool>("big-endian")), nullptr);
+    });
+
+Action a_decode_tool_shop_random_set(
+    "decode-tool-shop-random-set", "\
+  decode-tool-shop-random-set [INPUT-FILENAME [OUTPUT-FILENAME]] [OPTIONS]\n\
+    Converts a ToolRandom.rel file into a JSON tool shop random set. Use\n\
+    --big-endian if the .rel file is from PSO GC.\n",
+    +[](phosg::Arguments& args) {
+      auto input_data = read_input_data(args);
+      ToolShopRandomSet table(input_data, args.get<bool>("big-endian"));
+      auto json = table.json();
+      auto serialized = json.serialize(phosg::JSON::SerializeOption::FORMAT | phosg::JSON::SerializeOption::SORT_DICT_KEYS);
+      write_output_data(args, serialized, nullptr);
+    });
+
+Action a_encode_tool_shop_random_set(
+    "encode-tool-shop-random-set", "\
+  encode-tool-shop-random-set [INPUT-FILENAME [OUTPUT-FILENAME]] [OPTIONS]\n\
+    Converts a JSON armo shop random set into an ToolRandom.rel file\n\
+    compatible with the game client. Use --big-endian if the .rel file is for\n\
+    PSO GC.\n",
+    +[](phosg::Arguments& args) {
+      ToolShopRandomSet table(phosg::JSON::parse(read_input_data(args)));
+      write_output_data(args, table.serialize_binary(args.get<bool>("big-endian")), nullptr);
+    });
+
+Action a_decode_weapon_shop_random_set(
+    "decode-weapon-shop-random-set", "\
+  decode-weapon-shop-random-set [INPUT-FILENAME [OUTPUT-FILENAME]] [OPTIONS]\n\
+    Converts a WeaponRandom.rel file into a JSON weapon shop random set. Use\n\
+    --big-endian if the .rel file is from PSO GC.\n",
+    +[](phosg::Arguments& args) {
+      auto input_data = read_input_data(args);
+      WeaponShopRandomSet table(input_data, args.get<bool>("big-endian"));
+      auto json = table.json();
+      auto serialized = json.serialize(phosg::JSON::SerializeOption::FORMAT | phosg::JSON::SerializeOption::SORT_DICT_KEYS);
+      write_output_data(args, serialized, nullptr);
+    });
+
+Action a_encode_weapon_shop_random_set(
+    "encode-weapon-shop-random-set", "\
+  encode-weapon-shop-random-set [INPUT-FILENAME [OUTPUT-FILENAME]] [OPTIONS]\n\
+    Converts a JSON armo shop random set into an WeaponRandom.rel file\n\
+    compatible with the game client. Use --big-endian if the .rel file is for\n\
+    PSO GC.\n",
+    +[](phosg::Arguments& args) {
+      WeaponShopRandomSet table(phosg::JSON::parse(read_input_data(args)));
+      write_output_data(args, table.serialize_binary(args.get<bool>("big-endian")), nullptr);
+    });
+
 Action a_decode_level_table(
     "decode-level-table", nullptr,
     +[](phosg::Arguments& args) {
@@ -2646,7 +2776,7 @@ Action a_name_all_items(
 Action a_print_level_stats(
     "show-level-tables", "\
   show-level-tables\n\
-    Print the level tables for each version in a semi-human-reatable format.\n",
+    Print the level tables for each version in a semi-human-readable format.\n",
     +[](phosg::Arguments& args) {
       auto s = std::make_shared<ServerState>(get_config_filename(args));
       s->load_config_early();
@@ -2732,7 +2862,7 @@ Action a_print_level_stats(
 Action a_show_item_parameter_tables(
     "show-item-parameter-tables", "\
   show-item-parameter-tables\n\
-    Print the item parameter tables for each version in a semi-human-reatable\n\
+    Print the item parameter tables for each version in a semi-human-readable\n\
     format.\n",
     +[](phosg::Arguments& args) {
       auto s = std::make_shared<ServerState>(get_config_filename(args));
@@ -2744,6 +2874,27 @@ Action a_show_item_parameter_tables(
           index->print_table(stdout);
         }
       }
+    });
+
+Action a_show_shop_random_sets(
+    "show-shop-random-sets", "\
+  show-shop-random-sets\n\
+    Print the tekker and shop generation tables in a semi-human-readable\n\
+    format.\n",
+    +[](phosg::Arguments& args) {
+      auto s = std::make_shared<ServerState>(get_config_filename(args));
+      s->load_all(false);
+      s->tekker_adjustment_set->print(stdout);
+      s->armor_random_set->print(stdout);
+      s->tool_random_set->print(stdout);
+      phosg::fwrite_fmt(stdout, "(Normal) ");
+      s->weapon_random_set(Difficulty::NORMAL)->print(stdout);
+      phosg::fwrite_fmt(stdout, "(Hard) ");
+      s->weapon_random_set(Difficulty::HARD)->print(stdout);
+      phosg::fwrite_fmt(stdout, "(Very Hard) ");
+      s->weapon_random_set(Difficulty::VERY_HARD)->print(stdout);
+      phosg::fwrite_fmt(stdout, "(Ultimate) ");
+      s->weapon_random_set(Difficulty::ULTIMATE)->print(stdout);
     });
 
 Action a_show_ep3_cards(
@@ -3775,21 +3926,34 @@ Action a_diff_executables(
       bool b_is_dol = b_filename.ends_with(".dol");
       bool a_is_xbe = a_filename.ends_with(".xbe");
       bool b_is_xbe = b_filename.ends_with(".xbe");
-      std::vector<DiffEntry> result;
-      if (a_is_dol && b_is_dol) {
-        result = diff_dol_files(a_filename, b_filename);
-      } else if (a_is_xbe && b_is_xbe) {
-        result = diff_xbe_files(a_filename, b_filename);
+
+      if (a_is_dol && b_is_dol && args.get<bool>("semantic")) {
+        std::unordered_set<uint32_t> a_ignore_functions, b_ignore_functions;
+        for (const auto& addr : args.get_multi<uint32_t>("a-ignore-function", phosg::Arguments::IntFormat::HEX)) {
+          a_ignore_functions.emplace(addr);
+        }
+        for (const auto& addr : args.get_multi<uint32_t>("b-ignore-function", phosg::Arguments::IntFormat::HEX)) {
+          b_ignore_functions.emplace(addr);
+        }
+        diff_dol_files_semantic(stdout, a_filename, b_filename, a_ignore_functions, b_ignore_functions);
+
       } else {
-        throw std::runtime_error("the two files are not the same type of executable, or are neither dol nor xbe");
-      }
-      for (const auto& it : result) {
-        std::string b_str = phosg::format_data_string(it.b_data, nullptr, phosg::FormatDataStringFlags::HEX_ONLY);
-        if (show_pre) {
-          std::string a_str = phosg::format_data_string(it.a_data, nullptr, phosg::FormatDataStringFlags::HEX_ONLY);
-          phosg::fwrite_fmt(stdout, "{:08X}: {} => {}\n", it.address, a_str, b_str);
+        std::vector<DiffEntry> result;
+        if (a_is_dol && b_is_dol) {
+          result = diff_dol_files(a_filename, b_filename);
+        } else if (a_is_xbe && b_is_xbe) {
+          result = diff_xbe_files(a_filename, b_filename);
         } else {
-          phosg::fwrite_fmt(stdout, "{:08X} {}\n", it.address, b_str);
+          throw std::runtime_error("the two files are not the same type of executable, or are neither dol nor xbe");
+        }
+        for (const auto& it : result) {
+          std::string b_str = phosg::format_data_string(it.b_data, nullptr, phosg::FormatDataStringFlags::HEX_ONLY);
+          if (show_pre) {
+            std::string a_str = phosg::format_data_string(it.a_data, nullptr, phosg::FormatDataStringFlags::HEX_ONLY);
+            phosg::fwrite_fmt(stdout, "{:08X}: {} => {}\n", it.address, a_str, b_str);
+          } else {
+            phosg::fwrite_fmt(stdout, "{:08X} {}\n", it.address, b_str);
+          }
         }
       }
     });
