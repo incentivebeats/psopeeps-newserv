@@ -1647,6 +1647,18 @@ void ServerState::load_accounts() {
 void ServerState::load_teams() {
   config_log.info_f("Indexing teams");
   this->team_index = std::make_shared<TeamIndex>("system/teams", this->team_reward_defs_json);
+
+  TeamSync::set_canonical_team_state_callback([this](const phosg::JSON& canonical_team_state) -> void {
+    if (!this->team_index) {
+      return;
+    }
+    try {
+      this->team_index->replace_all_from_authority(canonical_team_state);
+      config_log.info_f("Applied canonical TeamSync team state");
+    } catch (const std::exception& e) {
+      config_log.warning_f("Failed to apply canonical TeamSync team state: {}", e.what());
+    }
+  });
 }
 
 void ServerState::load_patch_indexes() {

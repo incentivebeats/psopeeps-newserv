@@ -454,6 +454,102 @@ void TeamIndex::buy_reward(uint32_t team_id, const std::string& key, uint32_t po
   team->save_config();
 }
 
+void TeamIndex::replace_all_from_authority(const phosg::JSON& canonical_team_state) {
+  uint32_t new_next_team_id = canonical_team_state.get_int("next_team_id", 1);
+  if (new_next_team_id < 1) {
+    new_next_team_id = 1;
+  }
+
+  std::unordered_map<uint32_t, std::shared_ptr<Team>> new_id_to_team;
+  std::unordered_map<std::string, std::shared_ptr<Team>> new_name_to_team;
+  std::unordered_map<uint32_t, std::shared_ptr<Team>> new_account_id_to_team;
+
+  const auto& teams_json = canonical_team_state.get("teams", phosg::JSON::list()).as_list();
+  for (const auto& team_json_p : teams_json) {
+    const auto& team_json = *team_json_p;
+    uint32_t team_id = team_json.get_int("team_id");
+    if (team_id == 0) {
+      throw std::runtime_error("authority team has invalid team_id");
+    }
+
+    auto team = std::make_shared<Team>(team_id);
+    team->name = team_json.get_string("name", "");
+    if (team->name.empty()) {
+      throw std::runtime_error("authority team has empty name");
+    }
+
+    team->reward_flags = team_json.get_int("reward_flags", 0);
+    team->spent_points = team_json.get_int("spent_points", 0);
+    team->points = 0;
+
+    team->reward_keys.clear();
+    for (const auto& key_json_p : team_json.get("reward_keys", phosg::JSON::list()).as_list()) {
+      team->reward_keys.emplace(key_json_p->as_string());
+    }
+
+    const auto& members_json = team_json.get("members", phosg::JSON::list()).as_list();
+    for (const auto& member_json_p : members_json) {
+      const auto& member_json = *member_json_p;
+      Team::Member m;
+      m.account_id = member_json.get_int("account_id", member_json.get_int("AccountID", 0));
+      m.flags = member_json.get_int("flags", member_json.get_int("Flags", 0));
+      m.points = member_json.get_int("points", member_json.get_int("Points", 0));
+      m.name = member_json.get_string("name", member_json.get_string("Name", ""));
+
+      if (m.account_id == 0) {
+        throw std::runtime_error("authority team member has invalid account_id");
+      }
+      if (m.check_flag(Team::Member::Flag::IS_MASTER)) {
+        team->master_account_id = m.account_id;
+      }
+      team->points += m.points;
+      team->members.emplace(m.account_id, std::move(m));
+    }
+
+    if (team->members.empty()) {
+      throw std::runtime_error("authority team has no members");
+    }
+
+    if (!new_id_to_team.emplace(team->team_id, team).second) {
+      throw std::runtime_error("authority state has duplicate team_id");
+    }
+    if (!new_name_to_team.emplace(team->name, team).second) {
+      throw std::runtime_error("authority state has duplicate team name");
+    }
+    for (const auto& [account_id, member] : team->members) {
+      if (!new_account_id_to_team.emplace(account_id, team).second) {
+        throw std::runtime_error("authority state has account in multiple teams");
+      }
+    }
+  }
+
+  std::filesystem::create_directories(this->directory.c_str());
+
+  for (const auto& item : std::filesystem::directory_iterator(this->directory)) {
+    const std::string filename = item.path().filename().string();
+    if ((filename != "base.json") && (filename.ends_with(".json") || filename.ends_with(".bmp"))) {
+      std::filesystem::remove(item.path());
+    }
+  }
+
+  phosg::save_file(
+      this->directory + "/base.json",
+      phosg::JSON::dict({{"NextTeamID", new_next_team_id}}).serialize(
+          phosg::JSON::SerializeOption::FORMAT |
+          phosg::JSON::SerializeOption::HEX_INTEGERS |
+          phosg::JSON::SerializeOption::ESCAPE_CONTROLS_ONLY));
+
+  this->next_team_id = new_next_team_id;
+  this->id_to_team.swap(new_id_to_team);
+  this->name_to_team.swap(new_name_to_team);
+  this->account_id_to_team.swap(new_account_id_to_team);
+
+  for (const auto& [team_id, team] : this->id_to_team) {
+    team->save_config();
+  }
+}
+
+
 void TeamIndex::add_to_indexes(std::shared_ptr<Team> team) {
   if (!this->id_to_team.emplace(team->team_id, team).second) {
     throw std::runtime_error("team ID is already in use");
