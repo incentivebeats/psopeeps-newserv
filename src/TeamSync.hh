@@ -36,6 +36,7 @@ bool relay_team_chat_enabled();
 bool relay_team_points_enabled();
 bool relay_team_actions_enabled();
 
+bool enqueue_team_chat(uint32_t team_id, uint32_t sender_account_id, const std::string& sender_name, const void* data, size_t size);
 bool enqueue_team_create(const std::string& team_name, uint32_t creator_account_id, const std::string& creator_name);
 bool enqueue_team_member_add(uint32_t team_id, uint32_t account_id, const std::string& name);
 bool enqueue_team_member_update(uint32_t account_id, const std::string& name, int64_t points_delta);
@@ -50,6 +51,9 @@ asio::awaitable<bool> exchange_once_now();
 
 using CanonicalTeamStateCallback = std::function<void(const phosg::JSON&)>;
 void set_canonical_team_state_callback(CanonicalTeamStateCallback cb);
+
+using InboundEventCallback = std::function<void(const phosg::JSON&)>;
+void set_inbound_event_callback(InboundEventCallback cb);
 
 void start_exchange_task(asio::io_context& io_context);
 
