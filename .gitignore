@@ -57,3 +57,6 @@ system/players
 system/quests/includes
 system/quests/private
 .vscode
+source-bestiary/
+source-drops/
+site/*.back
