@@ -40,6 +40,10 @@ struct OutboundEvent {
   uint32_t account_id = 0;
   std::string name;
 
+  uint32_t sender_account_id = 0;
+  std::string sender_name;
+  std::string message_data_hex;
+
   std::string team_name;
   uint32_t creator_account_id = 0;
   std::string creator_name;
@@ -64,6 +68,9 @@ static std::deque<OutboundEvent> outbound_events;
 
 static std::mutex canonical_team_state_callback_mutex;
 static CanonicalTeamStateCallback canonical_team_state_callback;
+
+static std::mutex inbound_event_callback_mutex;
+static InboundEventCallback inbound_event_callback;
 
 static std::string source_label(const Config& cfg) {
   if (!cfg.source.empty()) {
@@ -486,6 +493,31 @@ bool relay_team_actions_enabled() {
   return cfg.enabled && cfg.relay_team_actions;
 }
 
+bool enqueue_team_chat(uint32_t team_id, uint32_t sender_account_id, const std::string& sender_name, const void* data, size_t size) {
+  auto cfg = get_config();
+  if (!cfg.enabled || !cfg.relay_team_chat || team_id == 0 || sender_account_id == 0 || !data || !size || size > 2048) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> g(exchange_state_mutex);
+  if (outbound_events.size() >= MAX_OUTBOUND_EVENTS) {
+    std::fprintf(stderr,
+        "[TeamSync] warning outbound_event_dropped reason=queue_full source=%s team_namespace=%s type=team_chat\n",
+        source_label(cfg).c_str(),
+        cfg.team_namespace.c_str());
+    return false;
+  }
+
+  OutboundEvent ev;
+  ev.type = "team_chat";
+  ev.team_id = team_id;
+  ev.sender_account_id = sender_account_id;
+  ev.sender_name = sender_name;
+  ev.message_data_hex = hex_encode(data, size);
+  outbound_events.emplace_back(std::move(ev));
+  return true;
+}
+
 bool enqueue_team_create(const std::string& team_name, uint32_t creator_account_id, const std::string& creator_name) {
   auto cfg = get_config();
   if (!cfg.enabled || !cfg.relay_team_actions) {
@@ -724,6 +756,22 @@ void set_canonical_team_state_callback(CanonicalTeamStateCallback cb) {
   canonical_team_state_callback = std::move(cb);
 }
 
+void set_inbound_event_callback(InboundEventCallback cb) {
+  std::lock_guard<std::mutex> g(inbound_event_callback_mutex);
+  inbound_event_callback = std::move(cb);
+}
+
+static void apply_inbound_event(const phosg::JSON& event) {
+  InboundEventCallback cb;
+  {
+    std::lock_guard<std::mutex> g(inbound_event_callback_mutex);
+    cb = inbound_event_callback;
+  }
+  if (cb) {
+    cb(event);
+  }
+}
+
 static void apply_canonical_team_state(const phosg::JSON& canonical_team_state) {
   CanonicalTeamStateCallback cb;
   {
@@ -753,7 +801,17 @@ static std::string exchange_body_for_current_state(const Config& cfg) {
       }
       first = false;
 
-      if (ev.type == "team_create") {
+      if (ev.type == "team_chat") {
+        parts += std::format(
+            "{{\"seq\":{},\"type\":\"team_chat\",\"team_namespace\":\"{}\",\"team_id\":{},\"sender_account_id\":{},\"sender_name\":\"{}\",\"message_data_hex\":\"{}\"}}",
+            ev.seq,
+            json_escape(cfg.team_namespace),
+            ev.team_id,
+            ev.sender_account_id,
+            json_escape(ev.sender_name),
+            ev.message_data_hex);
+
+      } else if (ev.type == "team_create") {
         parts += std::format(
             "{{\"seq\":{},\"type\":\"team_create\",\"team_namespace\":\"{}\",\"creator_account_id\":{},\"creator_name\":\"{}\",\"team_name\":\"{}\"}}",
             ev.seq,
@@ -870,8 +928,26 @@ static asio::awaitable<void> run_empty_exchange_once(const Config& cfg) {
 
   uint64_t ack_max_seq = response.get_int("ack_max_seq", 0);
   uint64_t next_cursor = response.get_int("next_cursor", 0);
+
+  const auto& stats_json = response.get("stats", phosg::JSON::dict());
+  std::fprintf(stderr,
+      "[TeamSync] exchange response source=%s team_namespace=%s ack_max_seq=%" PRIu64 " next_seq=%" PRIu64 " cursor=%" PRIu64 " accepted=%" PRId64 " duplicates=%" PRId64 " blocked=%" PRId64 " retained_events=%" PRId64 "\n",
+      source_label(cfg).c_str(),
+      cfg.team_namespace.c_str(),
+      ack_max_seq,
+      exchange_state.next_seq,
+      next_cursor,
+      stats_json.get_int("accepted", -1),
+      stats_json.get_int("duplicates", -1),
+      stats_json.get_int("blocked", -1),
+      stats_json.get_int("retained_events", -1));
   bool truncated = response.get_bool("truncated", false);
   size_t inbound_events = response.get("events", phosg::JSON::list()).as_list().size();
+
+  const auto& events_json = response.get("events", phosg::JSON::list()).as_list();
+  for (const auto& event_json_p : events_json) {
+    apply_inbound_event(*event_json_p);
+  }
 
   const auto& canonical_team_state = response.get("canonical_team_state", phosg::JSON::dict());
   if (!canonical_team_state.as_dict().empty()) {

@@ -7006,6 +7006,22 @@ static asio::awaitable<void> on_EA_BB(std::shared_ptr<Client> c, Channel::Messag
             } catch (const std::out_of_range&) {
             }
           }
+
+          if (TeamSync::relay_team_chat_enabled()) {
+            const bool queued_team_chat = TeamSync::enqueue_team_chat(
+                team->team_id,
+                c->login->account->account_id,
+                c->character_file()->disp.visual.name.decode(c->language()),
+                msg.data.data(),
+                msg.data.size());
+            config_log.info_f(
+                "TeamSync team_chat relay attempt team_id={:08X} account_id={:08X} size={} queued={}",
+                team->team_id,
+                c->login->account->account_id,
+                msg.data.size(),
+                queued_team_chat);
+            co_await TeamSync::exchange_once_now();
+          }
         }
       }
       break;
