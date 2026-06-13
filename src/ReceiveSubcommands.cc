@@ -336,10 +336,14 @@ static bool append_hardcore_stats_enemy_kill_event(
     std::string character_name;
     uint32_t level = 0;
     uint32_t total_exp = 0;
+    uint64_t character_creation_timestamp = 0;
+    uint64_t play_time_seconds = 0;
     if (p) {
       character_name = p->disp.visual.name.decode(c->language());
       level = p->disp.stats.level.load() + 1;
       total_exp = p->disp.stats.exp.load();
+      character_creation_timestamp = p->creation_timestamp.load();
+      play_time_seconds = p->play_time_seconds.load();
     }
 
     f << "{"
@@ -350,8 +354,10 @@ static bool append_hardcore_stats_enemy_kill_event(
       << "\"character_slot\":" << c->bb_character_index << ","
       << "\"character_file\":\"" << json_escape_for_hardcore_ledger(c->character_filename()) << "\","
       << "\"character_name\":\"" << json_escape_for_hardcore_ledger(character_name) << "\","
+      << "\"character_creation_timestamp\":" << character_creation_timestamp << ","
       << "\"level\":" << level << ","
       << "\"total_exp\":" << total_exp << ","
+      << "\"play_time_seconds\":" << play_time_seconds << ","
       << "\"enemy_type\":\"" << phosg::name_for_enum(enemy_type) << "\","
       << "\"enemy_index\":" << enemy_index << ","
       << "\"floor\":" << static_cast<size_t>(floor) << ","
