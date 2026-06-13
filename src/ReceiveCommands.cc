@@ -32,6 +32,7 @@
 #include <ctime>
 #include "BrutalPeeps.hh"
 #include "AccountSync.hh"
+#include <sys/stat.h>
 
 const char* BATTLE_TABLE_DISCONNECT_HOOK_NAME = "battle_table_state";
 const char* QUEST_BARRIER_DISCONNECT_HOOK_NAME = "quest_barrier";
@@ -138,6 +139,15 @@ static bool bb_character_is_hardcore_ineligible(std::shared_ptr<Client> c) {
   return file_exists_for_bb_taint(bb_hardcore_ineligible_filename(c));
 }
 
+static bool file_mtime_for_hardcore_dead_marker(const std::string& filename, time_t* ret) {
+  struct stat st;
+  if (stat(filename.c_str(), &st)) {
+    return false;
+  }
+  *ret = st.st_mtime;
+  return true;
+}
+
 static bool bb_hardcore_dead_marker_matches_current_character(std::shared_ptr<Client> c, const std::string& filename) {
   std::ifstream f(filename);
   if (!f.good()) {
@@ -156,18 +166,26 @@ static bool bb_hardcore_dead_marker_matches_current_character(std::shared_ptr<Cl
     }
   }
 
-  // Legacy dead markers did not include a creation timestamp. Treat them as
-  // stale so recreated characters in the same slot are not blocked forever.
-  if (!marker_creation_timestamp) {
-    return false;
-  }
-
   auto p = c->character_file(false);
   if (!p) {
     return false;
   }
 
-  return marker_creation_timestamp == p->creation_timestamp.load();
+  if (marker_creation_timestamp) {
+    return marker_creation_timestamp == p->creation_timestamp.load();
+  }
+
+  // Legacy dead markers have no creation timestamp. They still count unless
+  // the character file is newer, which means the slot was recreated after death.
+  time_t character_mtime = 0;
+  time_t marker_mtime = 0;
+  if (file_mtime_for_hardcore_dead_marker(c->character_filename(), &character_mtime) &&
+      file_mtime_for_hardcore_dead_marker(filename, &marker_mtime)) {
+    return marker_mtime >= character_mtime;
+  }
+
+  // If mtimes cannot be read, fail closed and keep the marker active.
+  return true;
 }
 
 static bool bb_character_is_hardcore_dead(std::shared_ptr<Client> c) {
