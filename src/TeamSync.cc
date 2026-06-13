@@ -928,6 +928,19 @@ static asio::awaitable<void> run_empty_exchange_once(const Config& cfg) {
 
   uint64_t ack_max_seq = response.get_int("ack_max_seq", 0);
   uint64_t next_cursor = response.get_int("next_cursor", 0);
+
+  const auto& stats_json = response.get("stats", phosg::JSON::dict());
+  std::fprintf(stderr,
+      "[TeamSync] exchange response source=%s team_namespace=%s ack_max_seq=%" PRIu64 " next_seq=%" PRIu64 " cursor=%" PRIu64 " accepted=%" PRId64 " duplicates=%" PRId64 " blocked=%" PRId64 " retained_events=%" PRId64 "\n",
+      source_label(cfg).c_str(),
+      cfg.team_namespace.c_str(),
+      ack_max_seq,
+      exchange_state.next_seq,
+      next_cursor,
+      stats_json.get_int("accepted", -1),
+      stats_json.get_int("duplicates", -1),
+      stats_json.get_int("blocked", -1),
+      stats_json.get_int("retained_events", -1));
   bool truncated = response.get_bool("truncated", false);
   size_t inbound_events = response.get("events", phosg::JSON::list()).as_list().size();
 
