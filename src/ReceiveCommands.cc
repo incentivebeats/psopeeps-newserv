@@ -138,8 +138,40 @@ static bool bb_character_is_hardcore_ineligible(std::shared_ptr<Client> c) {
   return file_exists_for_bb_taint(bb_hardcore_ineligible_filename(c));
 }
 
+static bool bb_hardcore_dead_marker_matches_current_character(std::shared_ptr<Client> c, const std::string& filename) {
+  std::ifstream f(filename);
+  if (!f.good()) {
+    return false;
+  }
+
+  uint32_t marker_creation_timestamp = 0;
+  for (std::string line; std::getline(f, line);) {
+    static const std::string prefix = "character_creation_timestamp=";
+    if (line.starts_with(prefix)) {
+      try {
+        marker_creation_timestamp = stoul(line.substr(prefix.size()), nullptr, 0);
+      } catch (const std::exception&) {
+        marker_creation_timestamp = 0;
+      }
+    }
+  }
+
+  // Legacy dead markers did not include a creation timestamp. Treat them as
+  // stale so recreated characters in the same slot are not blocked forever.
+  if (!marker_creation_timestamp) {
+    return false;
+  }
+
+  auto p = c->character_file(false);
+  if (!p) {
+    return false;
+  }
+
+  return marker_creation_timestamp == p->creation_timestamp.load();
+}
+
 static bool bb_character_is_hardcore_dead(std::shared_ptr<Client> c) {
-  return file_exists_for_bb_taint(bb_hardcore_dead_filename(c));
+  return bb_hardcore_dead_marker_matches_current_character(c, bb_hardcore_dead_filename(c));
 }
 
 static bool write_bb_hardcore_marker(std::shared_ptr<Client> c, const std::string& filename, const char* status, const char* reason) {
@@ -157,6 +189,12 @@ static bool write_bb_hardcore_marker(std::shared_ptr<Client> c, const std::strin
   f << "reason=" << reason << "\n";
   f << "account_id=" << account_id << "\n";
   f << "character_file=" << c->character_filename() << "\n";
+
+  auto p = c->character_file(false);
+  if (p) {
+    f << "character_creation_timestamp=" << p->creation_timestamp.load() << "\n";
+  }
+
   return f.good();
 }
 
