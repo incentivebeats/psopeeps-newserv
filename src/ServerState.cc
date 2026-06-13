@@ -27,6 +27,31 @@ static constexpr bool IS_WINDOWS = true;
 static constexpr bool IS_WINDOWS = false;
 #endif
 
+static uint8_t team_sync_hex_value_server_state(char ch) {
+  if (ch >= '0' && ch <= '9') {
+    return ch - '0';
+  } else if (ch >= 'a' && ch <= 'f') {
+    return 10 + ch - 'a';
+  } else if (ch >= 'A' && ch <= 'F') {
+    return 10 + ch - 'A';
+  }
+  throw std::runtime_error("invalid hex character");
+}
+
+static std::string team_sync_decode_hex_string_server_state(const std::string& hex) {
+  if (hex.size() & 1) {
+    throw std::runtime_error("hex string has odd length");
+  }
+  std::string ret;
+  ret.resize(hex.size() / 2);
+  for (size_t z = 0; z < ret.size(); z++) {
+    ret[z] = static_cast<char>(
+        (team_sync_hex_value_server_state(hex[z * 2]) << 4) |
+        team_sync_hex_value_server_state(hex[z * 2 + 1]));
+  }
+  return ret;
+}
+
 CheatFlags::CheatFlags(const phosg::JSON& json) : CheatFlags() {
   std::unordered_set<std::string> enabled_keys;
   for (const auto& it : json.as_list()) {
@@ -1756,6 +1781,44 @@ void ServerState::load_teams() {
 
     } catch (const std::exception& e) {
       config_log.warning_f("Failed to apply canonical TeamSync team state: {}", e.what());
+    }
+  });
+
+  TeamSync::set_inbound_event_callback([this](const phosg::JSON& event) -> void {
+    try {
+      if (!this->team_index) {
+        return;
+      }
+
+      std::string type = event.get_string("type", "");
+      if (type != "team_chat") {
+        return;
+      }
+
+      uint32_t team_id = event.get_int("team_id", 0);
+      uint32_t sender_account_id = event.get_int("sender_account_id", 0);
+      std::string message_data_hex = event.get_string("message_data_hex", "");
+      std::string message_data = team_sync_decode_hex_string_server_state(message_data_hex);
+
+      auto team = this->team_index->get_by_id(team_id);
+      if (!team) {
+        return;
+      }
+
+      for (const auto& it : team->members) {
+        uint32_t target_account_id = it.second.account_id;
+        if (target_account_id == sender_account_id) {
+          continue;
+        }
+        try {
+          auto target_c = this->find_client(nullptr, target_account_id);
+          send_command(target_c, 0x07EA, 0x00000000, message_data);
+        } catch (const std::out_of_range&) {
+        }
+      }
+
+    } catch (const std::exception& e) {
+      config_log.warning_f("Failed to apply inbound TeamSync event: {}", e.what());
     }
   });
 }
