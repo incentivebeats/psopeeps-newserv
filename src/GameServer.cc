@@ -153,7 +153,7 @@ std::vector<std::shared_ptr<Client>> GameServer::get_clients_by_identifier(const
 std::shared_ptr<Client> GameServer::create_client(
     std::shared_ptr<GameServerSocket> listen_sock, asio::ip::tcp::socket&& client_sock) {
   uint32_t addr = ipv4_addr_for_asio_addr(client_sock.remote_endpoint().address());
-  if (this->state->banned_ipv4_ranges->check(addr)) {
+  if (this->state->data->banned_ipv4_ranges->check(addr)) {
     if (client_sock.is_open()) {
       client_sock.close();
     }
@@ -168,7 +168,7 @@ std::shared_ptr<Client> GameServer::create_client(
       "",
       phosg::TerminalFormat::FG_YELLOW,
       phosg::TerminalFormat::FG_GREEN,
-      this->state->censor_credentials,
+      this->state->data->censor_credentials,
       false);
   auto c = std::make_shared<Client>(this->shared_from_this(), channel, listen_sock->behavior);
   c->listener_port = listen_sock->endpoint.port();
