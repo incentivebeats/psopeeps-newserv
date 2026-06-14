@@ -13,7 +13,7 @@
 #include "Map.hh"
 #include "SaveFileFormats.hh"
 
-struct ServerState;
+class ServerState;
 
 struct ProxySession {
   bool ending_intentionally = false;
