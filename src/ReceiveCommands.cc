@@ -500,6 +500,45 @@ static asio::awaitable<void> send_auto_patches_if_needed(std::shared_ptr<Client>
   }
 }
 
+static asio::awaitable<bool> acquire_early_bb_account_sync_lock_if_needed(std::shared_ptr<Client> c) {
+  if ((c->version() != Version::BB_PATCH) && (c->version() != Version::BB_V4)) {
+    co_return true;
+  }
+  if (c->bb_connection_phase >= 0x04) {
+    co_return true;
+  }
+  if (!c->login || !c->login->account) {
+    co_return true;
+  }
+  if (c->account_sync_lock_acquired) {
+    co_return true;
+  }
+
+  auto lock_res = co_await AccountSync::acquire_login_lock(
+      c->login->account->account_id,
+      phosg::name_for_enum(c->version()),
+      c->account_sync_session_nonce);
+
+  if (!lock_res.allowed) {
+    std::string message = lock_res.message.empty()
+        ? "$C6Account is already active\non another ship."
+        : lock_res.message;
+    c->log.info_f("Early BB login lock denied before character select: {}", message);
+    send_message_box(c, message);
+    c->channel->disconnect();
+    co_return false;
+  }
+
+  if (!lock_res.session_nonce.empty()) {
+    c->account_sync_lock_acquired = true;
+    c->account_sync_lock_account_id = c->login->account->account_id;
+    c->account_sync_session_nonce = lock_res.session_nonce;
+    c->log.info_f("Early BB login lock acquired before character select: nonce={}", c->account_sync_session_nonce);
+  }
+
+  co_return true;
+}
+
 asio::awaitable<void> start_login_server_procedure(std::shared_ptr<Client> c) {
   auto s = c->require_server_state();
 
@@ -1700,6 +1739,10 @@ static asio::awaitable<void> on_93_BB(std::shared_ptr<Client> c, Channel::Messag
   }
 
   if (c->login->account && c->login->bb_license) {
+    if (!co_await acquire_early_bb_account_sync_lock_if_needed(c)) {
+      co_return;
+    }
+
     AccountSync::notify_bb_login_start(
         c->login->account->account_id,
         c->login->bb_license->username,
