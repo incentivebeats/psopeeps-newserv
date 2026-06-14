@@ -198,7 +198,7 @@ void send_guild_card_header_bb(std::shared_ptr<Client> c);
 void send_guild_card_chunk_bb(std::shared_ptr<Client> c, size_t chunk_index);
 void send_stream_file_index_bb(std::shared_ptr<Client> c);
 void send_stream_file_chunk_bb(std::shared_ptr<Client> c, uint32_t chunk_index);
-asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, int64_t tier);
+asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, int64_t tier, bool force_all_tables = false);
 void send_approve_player_choice_bb(std::shared_ptr<Client> c);
 void send_complete_player_bb(std::shared_ptr<Client> c);
 

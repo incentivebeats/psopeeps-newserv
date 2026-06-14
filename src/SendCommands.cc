@@ -35,7 +35,7 @@ inline uint8_t get_pre_v1_subcommand(Version v, uint8_t nte_subcommand, uint8_t 
   }
 }
 
-const std::unordered_set<uint32_t> v2_crypt_initial_client_commands({
+const std::unordered_set<uint32_t> v2_crypt_initial_client_commands{
     0x00260088, // (17) DCNTE license check
     0x00B0008B, // (02) DCNTE login
     0x00B0018B, // (02) DCNTE login (UDP off)
@@ -54,20 +54,20 @@ const std::unordered_set<uint32_t> v2_crypt_initial_client_commands({
     0x0130019D, // (02) DCv2/GCNTE extended login (UDP off)
     // Note: PSO PC initial commands are not listed here because we don't use a detector encryption for PSO PC
     // (instead, we use the split reconnect command to send PC to a different port).
-});
-const std::unordered_set<uint32_t> v3_crypt_initial_client_commands({
+};
+const std::unordered_set<uint32_t> v3_crypt_initial_client_commands{
     0x00E000DB, // (17) GC/XB license check
     0x00EC009E, // (02) GC login
     0x00EC019E, // (02) GC login (UDP off)
     0x0150009E, // (02) GC extended login
     0x0150019E, // (02) GC extended login (UDP off)
-});
+};
 
-const std::unordered_set<std::string> bb_crypt_initial_client_commands({
+const std::unordered_set<std::string> bb_crypt_initial_client_commands{
     std::string("\xB4\x00\x93\x00\x00\x00\x00\x00", 8),
     std::string("\xAC\x00\x93\x00\x00\x00\x00\x00", 8),
     std::string("\xDC\x00\xDB\x00\x00\x00\x00\x00", 8),
-});
+};
 
 void send_command(
     std::shared_ptr<Client> c,
@@ -234,7 +234,7 @@ void send_server_init_bb(std::shared_ptr<Client> c, uint8_t flags) {
   send_command_t(c, use_secondary_message ? 0x9B : 0x03, 0x00, cmd);
 
   c->bb_detector_crypt = std::make_shared<PSOBBMultiKeyDetectorEncryption>(
-      c->require_server_state()->bb_private_keys,
+      c->require_server_state()->data->bb_private_keys,
       bb_crypt_initial_client_commands,
       cmd.basic_cmd.client_key.data(),
       sizeof(cmd.basic_cmd.client_key));
@@ -338,7 +338,7 @@ asio::awaitable<void> prepare_client_for_patches(std::shared_ptr<Client> c) {
   auto s = c->require_server_state();
 
   if (!c->check_flag(Client::Flag::SEND_FUNCTION_CALL_NO_CACHE_PATCH)) {
-    auto fn = s->client_functions->get("CacheClearFix-Phase1", ClientFunctionIndex::Function::Architecture::POWERPC);
+    auto fn = s->data->client_functions->get("CacheClearFix-Phase1", ClientFunctionIndex::Function::Architecture::POWERPC);
     std::unordered_map<std::string, uint32_t> label_writes;
     auto call1_res = co_await send_function_call(c, fn, label_writes, nullptr, 0, 0x80000000, 8, 0x7F2734EC);
     try {
@@ -347,7 +347,7 @@ asio::awaitable<void> prepare_client_for_patches(std::shared_ptr<Client> c) {
     } catch (const std::out_of_range&) {
       c->log.info_f("Could not detect specific version from header checksum {:08X}", call1_res.checksum);
     }
-    co_await send_function_call(c, s->client_functions->get("CacheClearFix-Phase2", ClientFunctionIndex::Function::Architecture::POWERPC));
+    co_await send_function_call(c, s->data->client_functions->get("CacheClearFix-Phase2", ClientFunctionIndex::Function::Architecture::POWERPC));
     c->log.info_f("Client cache behavior patched");
     c->set_flag(Client::Flag::SEND_FUNCTION_CALL_NO_CACHE_PATCH);
   }
@@ -362,7 +362,7 @@ asio::awaitable<void> prepare_client_for_patches(std::shared_ptr<Client> c) {
   }
   if ((arch != ClientFunctionIndex::Function::Architecture::UNKNOWN) &&
       specific_version_is_indeterminate(c->specific_version)) {
-    auto vers_detect_res = co_await send_function_call(c, s->client_functions->get("VersionDetect", arch));
+    auto vers_detect_res = co_await send_function_call(c, s->data->client_functions->get("VersionDetect", arch));
     c->specific_version = vers_detect_res.return_value;
     c->log.info_f("Version detected as {:08X}", c->specific_version);
   }
@@ -519,7 +519,7 @@ asio::awaitable<bool> send_protected_command(std::shared_ptr<Client> c, const vo
     case Version::GC_EP3:
     case Version::BB_V4: {
       auto s = c->require_server_state();
-      if (!s->enable_v3_v4_protected_subcommands ||
+      if (!s->data->enable_v3_v4_protected_subcommands ||
           !c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL) ||
           !c->check_flag(Client::Flag::SEND_FUNCTION_CALL_ACTUALLY_RUNS_CODE)) {
         co_return false;
@@ -528,7 +528,7 @@ asio::awaitable<bool> send_protected_command(std::shared_ptr<Client> c, const vo
       co_await prepare_client_for_patches(c);
 
       try {
-        auto fn = s->client_functions->get("CallProtectedHandler", c->specific_version);
+        auto fn = s->data->client_functions->get("CallProtectedHandler", c->specific_version);
         std::unordered_map<std::string, uint32_t> label_writes{{"size", size}};
         co_await send_function_call(c, fn, label_writes, data, size);
         auto l = echo_to_lobby ? c->lobby.lock() : nullptr;
@@ -552,7 +552,7 @@ asio::awaitable<void> send_dol_file(std::shared_ptr<Client> c, std::shared_ptr<D
   // Determine the necessary start address for the data
   std::unordered_map<std::string, uint32_t> label_writes{{"address", 0x80000034}}; // ArenaHigh from GC globals
   auto addr_ret = co_await send_function_call(
-      c, s->client_functions->get("ReadMemoryWord", c->specific_version), label_writes);
+      c, s->data->client_functions->get("ReadMemoryWord", c->specific_version), label_writes);
   uint32_t dol_base_addr = (addr_ret.return_value - dol->data.size()) & (~3);
 
   // Write the file in multiple chunks
@@ -564,7 +564,7 @@ asio::awaitable<void> send_dol_file(std::shared_ptr<Client> c, std::shared_ptr<D
     std::string data_to_send = dol->data.substr(offset, bytes_to_send);
 
     auto s = c->require_server_state();
-    auto fn = s->client_functions->get("WriteMemory", c->specific_version);
+    auto fn = s->data->client_functions->get("WriteMemory", c->specific_version);
     label_writes = {{"dest_addr", (dol_base_addr + offset)}, {"size", bytes_to_send}};
     co_await send_function_call(c, fn, label_writes, data_to_send.data(), data_to_send.size());
 
@@ -575,7 +575,7 @@ asio::awaitable<void> send_dol_file(std::shared_ptr<Client> c, std::shared_ptr<D
   }
 
   // Send the final function, which moves the DOL's sections into place and calls the entrypoint
-  auto fn = s->client_functions->get("RunDOL", c->specific_version);
+  auto fn = s->data->client_functions->get("RunDOL", c->specific_version);
   label_writes = {{"dol_base_ptr", dol_base_addr}};
   co_await send_function_call(c, fn, label_writes);
   // The client will stop running PSO after this, so disconnect them
@@ -720,10 +720,10 @@ static std::string bb_stream_file_data_for_client(std::shared_ptr<Client> c) {
 
   const auto* brutal_peeps_def = brutal_peeps_tier_definition(effective_brutal_peeps_hp_scale_tier);
   if (!brutal_peeps_def) {
-    return s->bb_stream_file->data;
+    return s->data->bb_stream_file->data;
   }
 
-  std::string scaled_data = s->bb_stream_file->data;
+  std::string scaled_data = s->data->bb_stream_file->data;
   double mult = brutal_peeps_def->enemy_hp_multiplier;
   size_t ultimate_index = static_cast<size_t>(Difficulty::ULTIMATE);
 
@@ -741,7 +741,7 @@ static std::string bb_stream_file_data_for_client(std::shared_ptr<Client> c) {
     return static_cast<uint16_t>(scaled);
   };
 
-  for (const auto& sf_entry : s->bb_stream_file->entries) {
+  for (const auto& sf_entry : s->data->bb_stream_file->entries) {
     if (!is_battle_param_stream_file_for_brutal_peeps(sf_entry.filename)) {
       continue;
     }
@@ -777,7 +777,8 @@ static std::string bb_stream_file_data_for_client(std::shared_ptr<Client> c) {
 
 static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> send_brutal_peeps_hp_patch_bb_now(
     std::shared_ptr<Client> c,
-    int64_t tier) {
+    int64_t tier,
+    bool force_all_tables) {
   std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> promises;
 
   if (c->version() != Version::BB_V4) {
@@ -831,25 +832,28 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
     }();
 
     std::vector<std::string> bp_filenames;
-    auto l = c->lobby.lock();
-    if (l && l->is_game()) {
-      switch (l->episode) {
-        case Episode::EP1:
-          bp_filenames.emplace_back("BattleParamEntry_on.dat");
-          break;
-        case Episode::EP2:
-          bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
-          break;
-        case Episode::EP4:
-          bp_filenames.emplace_back("BattleParamEntry_ep4_on.dat");
-          break;
-        default:
-          break;
+
+    if (!force_all_tables) {
+      auto l = c->lobby.lock();
+      if (l && l->is_game()) {
+        switch (l->episode) {
+          case Episode::EP1:
+            bp_filenames.emplace_back("BattleParamEntry_on.dat");
+            break;
+          case Episode::EP2:
+            bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
+            break;
+          case Episode::EP4:
+            bp_filenames.emplace_back("BattleParamEntry_ep4_on.dat");
+            break;
+          default:
+            break;
+        }
       }
     }
 
-    // Before the room exists, we don't know which episode the player will pick.
-    // Patch all online BB BattleParam tables so EP2/EP4 HP is already scaled before enemies initialize.
+    // Before the room exists, or when explicitly requested from the BB ship-menu path,
+    // patch all online BB BattleParam tables before enemies initialize.
     if (bp_filenames.empty()) {
       bp_filenames.emplace_back("BattleParamEntry_on.dat");
       bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
@@ -889,12 +893,12 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
       return static_cast<uint16_t>(scaled);
     };
 
-    auto fn = s->client_functions->get("PsoPeepsBrutalPeepsHP", c->specific_version);
+    auto fn = s->data->client_functions->get("PsoPeepsBrutalPeepsHP", c->specific_version);
 
     for (const auto& bp_filename : bp_filenames) {
-      const BBStreamFile::Entry* bp_entry = nullptr;
+      const std::decay_t<decltype(s->data->bb_stream_file->entries)>::value_type* bp_entry = nullptr;
 
-      for (const auto& sf_entry : s->bb_stream_file->entries) {
+      for (const auto& sf_entry : s->data->bb_stream_file->entries) {
         if (sf_entry.filename == bp_filename) {
           bp_entry = &sf_entry;
           break;
@@ -905,13 +909,13 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
         continue;
       }
 
-      if ((bp_entry->offset > s->bb_stream_file->data.size()) ||
-          (bp_entry->size > (s->bb_stream_file->data.size() - bp_entry->offset))) {
+      if ((bp_entry->offset > s->data->bb_stream_file->data.size()) ||
+          (bp_entry->size > (s->data->bb_stream_file->data.size() - bp_entry->offset))) {
         c->log.warning_f("Skipping Brutal Peeps HP client patch: invalid {} range", bp_filename);
         continue;
       }
 
-      const char* vanilla_data = s->bb_stream_file->data.data() + bp_entry->offset;
+      const char* vanilla_data = s->data->bb_stream_file->data.data() + bp_entry->offset;
 
       if (bp_entry->size < signature_size) {
         c->log.warning_f("Skipping Brutal Peeps HP client patch: {} too small for signature", bp_filename);
@@ -989,22 +993,317 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
   }
 }
 
-asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, int64_t tier) {
+
+static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> send_brutal_peeps_hp_patch_pc_now(
+    std::shared_ptr<Client> c,
+    int64_t tier) {
+  std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> promises;
+
+  if (c->version() != Version::PC_V2) {
+    return promises;
+  }
+  if (!c->check_flag(Client::Flag::HAS_SEND_FUNCTION_CALL) ||
+      !c->check_flag(Client::Flag::SEND_FUNCTION_CALL_ACTUALLY_RUNS_CODE)) {
+    c->log.warning_f("Skipping Brutal Peeps PC client patch because client does not support executable send_function_call");
+    return promises;
+  }
+  if (!c->channel->connected()) {
+    c->log.warning_f("Skipping Brutal Peeps PC client patch because client is disconnected");
+    return promises;
+  }
+
+  try {
+    auto s = c->require_server_state();
+
+    if (tier < -1) {
+      c->log.warning_f("Skipping Brutal Peeps PC client patch for invalid tier {}", tier);
+      return promises;
+    }
+
+    const auto* target_brutal_peeps_def = brutal_peeps_tier_definition(tier);
+    if ((tier >= 0) && !target_brutal_peeps_def) {
+      c->log.warning_f("Skipping Brutal Peeps PC client patch for invalid tier {}", tier);
+      return promises;
+    }
+
+    int64_t source_tier = c->brutal_peeps_pc_battleparam_patch_tier;
+    const auto* source_brutal_peeps_def = brutal_peeps_tier_definition(source_tier);
+    if ((source_tier >= 0) && !source_brutal_peeps_def) {
+      c->log.warning_f("PC BattleParam patch source tier {} is invalid; resetting assumed source tier to vanilla", source_tier);
+      source_tier = -1;
+      source_brutal_peeps_def = nullptr;
+      c->brutal_peeps_pc_battleparam_patch_tier = -1;
+    }
+
+    if (source_tier == tier) {
+      return promises;
+    }
+
+    auto atp_mult_for_tier = +[](int64_t t) -> double {
+      switch (t) {
+        case 1:
+          return 1.01;
+        case 2:
+          return 1.02;
+        case 3:
+          return 1.03;
+        case 4:
+          return 1.04;
+        case 5:
+          return 1.05;
+        case 6:
+          return 1.06;
+        case 7:
+          return 1.07;
+        case 8:
+          return 1.08;
+        case 9:
+          return 1.09;
+        case 10:
+        case 11:
+          return 1.10;
+        default:
+          return 1.00;
+      }
+    };
+
+    constexpr const char* bp_filename = "BattleParamEntry_on.dat";
+    std::string vanilla_data = phosg::load_file("system/patch-pc/Media/PSO/BattleParamEntry_on.dat");
+
+    constexpr uint32_t scan_start = 0x01E00000;
+    constexpr uint32_t scan_end = 0x02E21000;
+    constexpr uint32_t signature_size = 64;
+
+    // PC V2 BattleParamEntry_on.dat layout:
+    // Ultimate stats rows start at 0x2880 and each stats row is 0x24 bytes.
+    // Within each row: ATP is +0x00, HP is +0x06, EXP is +0x1C.
+    //
+    // The PC memory image does not contain the full file, but the Ultimate
+    // stats block appears when an area is loaded. The scan signature must be
+    // based on the client's current patch tier, not always vanilla, so we can
+    // restore or move between BP tiers.
+    constexpr uint32_t ultimate_block_offset = 0x00002880;
+    constexpr uint32_t ultimate_atp_row_offset = 0x00;
+    constexpr uint32_t ultimate_hp_row_offset = 0x06;
+    constexpr uint32_t ultimate_exp_row_offset = 0x1C;
+    constexpr uint32_t stats_row_size = 0x24;
+    constexpr uint32_t num_bp_rows = 0x60;
+    constexpr uint32_t ultimate_block_size = num_bp_rows * stats_row_size;
+
+    auto append_u32l = +[](std::string& out, uint32_t v) {
+      out.push_back(static_cast<char>(v & 0xFF));
+      out.push_back(static_cast<char>((v >> 8) & 0xFF));
+      out.push_back(static_cast<char>((v >> 16) & 0xFF));
+      out.push_back(static_cast<char>((v >> 24) & 0xFF));
+    };
+
+    auto read_u16l = +[](const std::string& data, uint32_t offset) -> uint16_t {
+      return static_cast<uint8_t>(data[offset]) |
+          (static_cast<uint16_t>(static_cast<uint8_t>(data[offset + 1])) << 8);
+    };
+
+    auto write_u16l = +[](std::string& data, uint32_t offset, uint16_t v) {
+      data[offset] = static_cast<char>(v & 0xFF);
+      data[offset + 1] = static_cast<char>((v >> 8) & 0xFF);
+    };
+
+    auto read_u32l = +[](const std::string& data, uint32_t offset) -> uint32_t {
+      return static_cast<uint8_t>(data[offset]) |
+          (static_cast<uint32_t>(static_cast<uint8_t>(data[offset + 1])) << 8) |
+          (static_cast<uint32_t>(static_cast<uint8_t>(data[offset + 2])) << 16) |
+          (static_cast<uint32_t>(static_cast<uint8_t>(data[offset + 3])) << 24);
+    };
+
+    auto write_u32l = +[](std::string& data, uint32_t offset, uint32_t v) {
+      data[offset] = static_cast<char>(v & 0xFF);
+      data[offset + 1] = static_cast<char>((v >> 8) & 0xFF);
+      data[offset + 2] = static_cast<char>((v >> 16) & 0xFF);
+      data[offset + 3] = static_cast<char>((v >> 24) & 0xFF);
+    };
+
+    auto scale_u16 = +[](uint32_t v, double scale) -> uint16_t {
+      if (v == 0) {
+        return 0;
+      }
+      uint32_t scaled = static_cast<uint32_t>((static_cast<double>(v) * scale) + 0.5);
+      if (scaled < 1) {
+        scaled = 1;
+      }
+      if (scaled > 0xFFFF) {
+        scaled = 0xFFFF;
+      }
+      return static_cast<uint16_t>(scaled);
+    };
+
+    auto scale_u32 = +[](uint32_t v, double scale) -> uint32_t {
+      if (v == 0) {
+        return 0;
+      }
+      double scaled_f = (static_cast<double>(v) * scale) + 0.5;
+      if (scaled_f < 1.0) {
+        return 1;
+      }
+      if (scaled_f > 4294967295.0) {
+        return 0xFFFFFFFF;
+      }
+      return static_cast<uint32_t>(scaled_f);
+    };
+
+    auto append_patch_entry = [&](std::string& out, uint32_t offset, uint32_t value, uint8_t size) {
+      append_u32l(out, offset);
+      out.push_back(static_cast<char>(size));
+      for (uint8_t x = 0; x < size; x++) {
+        out.push_back(static_cast<char>((value >> (x * 8)) & 0xFF));
+      }
+    };
+
+    constexpr uint32_t last_needed_offset = ultimate_block_offset + ultimate_block_size;
+    if (vanilla_data.size() < last_needed_offset) {
+      c->log.warning_f("Skipping Brutal Peeps PC client patch: {} too small for Ultimate stats table", bp_filename);
+      return promises;
+    }
+
+    auto build_block_for_tier = [&](int64_t block_tier) -> std::string {
+      std::string block = vanilla_data.substr(ultimate_block_offset, ultimate_block_size);
+
+      const auto* def = brutal_peeps_tier_definition(block_tier);
+      const double hp_mult = def ? def->enemy_hp_multiplier : 1.0;
+      const double exp_mult = def ? def->exp_multiplier : 1.0;
+      const double atp_mult = atp_mult_for_tier(block_tier);
+
+      for (uint32_t z = 0; z < num_bp_rows; z++) {
+        const uint32_t row_offset = z * stats_row_size;
+
+        const uint32_t atp_offset = row_offset + ultimate_atp_row_offset;
+        const uint32_t hp_offset = row_offset + ultimate_hp_row_offset;
+        const uint32_t exp_offset = row_offset + ultimate_exp_row_offset;
+
+        write_u16l(block, atp_offset, scale_u16(read_u16l(block, atp_offset), atp_mult));
+        write_u16l(block, hp_offset, scale_u16(read_u16l(block, hp_offset), hp_mult));
+        write_u32l(block, exp_offset, scale_u32(read_u32l(block, exp_offset), exp_mult));
+      }
+
+      return block;
+    };
+
+    const std::string source_block = build_block_for_tier(source_tier);
+    const std::string target_block = build_block_for_tier(tier);
+
+    std::string suffix;
+    append_u32l(suffix, scan_start);
+    append_u32l(suffix, scan_end);
+    append_u32l(suffix, signature_size);
+    append_u32l(suffix, 0); // patched below after patch generation
+    suffix.append(source_block.data(), signature_size);
+
+    uint32_t patch_entry_count = 0;
+
+    for (uint32_t z = 0; z < num_bp_rows; z++) {
+      const uint32_t row_patch_offset = z * stats_row_size;
+
+      const uint32_t atp_patch_offset = row_patch_offset + ultimate_atp_row_offset;
+      const uint32_t hp_patch_offset = row_patch_offset + ultimate_hp_row_offset;
+      const uint32_t exp_patch_offset = row_patch_offset + ultimate_exp_row_offset;
+
+      append_patch_entry(suffix, atp_patch_offset, read_u16l(target_block, atp_patch_offset), 2);
+      patch_entry_count++;
+
+      append_patch_entry(suffix, hp_patch_offset, read_u16l(target_block, hp_patch_offset), 2);
+      patch_entry_count++;
+
+      append_patch_entry(suffix, exp_patch_offset, read_u32l(target_block, exp_patch_offset), 4);
+      patch_entry_count++;
+    }
+
+    suffix[12] = static_cast<char>(patch_entry_count & 0xFF);
+    suffix[13] = static_cast<char>((patch_entry_count >> 8) & 0xFF);
+    suffix[14] = static_cast<char>((patch_entry_count >> 16) & 0xFF);
+    suffix[15] = static_cast<char>((patch_entry_count >> 24) & 0xFF);
+
+    auto fn = s->data->client_functions->get("PsoPeepsBrutalPeepsPC", c->specific_version);
+
+    auto promise = std::make_shared<AsyncPromise<C_ExecuteCodeResult_B3>>();
+    c->function_call_response_queue.emplace_back(promise);
+
+    // This is a dynamic patch: the suffix changes by tier and by restore state.
+    // Force the code+suffix to be sent every time instead of treating it as a
+    // cached/enabled client function.
+    send_function_call(
+        c->channel,
+        c->enabled_flags & (~fn->client_flag),
+        fn,
+        {},
+        suffix.data(),
+        suffix.size());
+
+    promises.emplace_back(bp_filename, promise);
+
+    const auto* target_def_for_log = brutal_peeps_tier_definition(tier);
+    const double hp_mult_for_log = target_def_for_log ? target_def_for_log->enemy_hp_multiplier : 1.0;
+    const double exp_mult_for_log = target_def_for_log ? target_def_for_log->exp_multiplier : 1.0;
+    const double atp_mult_for_log = atp_mult_for_tier(tier);
+
+    c->log.info_f("Brutal Peeps PC ATP/HP/EXP client patch sent for {}: source_tier={} target_tier={} hp_mult={:g} atp_mult={:g} exp_mult={:g} patch_entries={} suffix_size={} scan={:08X}-{:08X}",
+        bp_filename, source_tier, tier, hp_mult_for_log, atp_mult_for_log, exp_mult_for_log, patch_entry_count, suffix.size(), scan_start, scan_end);
+
+    return promises;
+
+  } catch (const std::exception& e) {
+    c->log.warning_f("Failed to send Brutal Peeps PC client patch: {}", e.what());
+    return promises;
+  }
+}
+
+
+asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, int64_t tier, bool force_all_tables) {
   try {
     co_await prepare_client_for_patches(c);
 
-    auto promises = send_brutal_peeps_hp_patch_bb_now(c, tier);
-    for (auto& it : promises) {
-      const auto& filename = it.first;
-      auto& promise = it.second;
-      if (promise && c->channel->connected()) {
-        auto result = co_await promise->get();
-        c->log.info_f("Brutal Peeps HP/ATP client patch result for {}: tier={} return_value={:08X} checksum={:08X}",
-            filename,
-            tier,
-            static_cast<uint32_t>(result.return_value),
-            static_cast<uint32_t>(result.checksum));
+    const bool is_pc_bp_patch = (c->version() == Version::PC_V2);
+    const size_t max_attempts = 1;
+
+    for (size_t attempt = 1; attempt <= max_attempts; attempt++) {
+      auto promises = is_pc_bp_patch
+          ? send_brutal_peeps_hp_patch_pc_now(c, tier)
+          : send_brutal_peeps_hp_patch_bb_now(c, tier, force_all_tables);
+
+      bool any_zero_return = false;
+      bool any_success = false;
+
+      for (auto& it : promises) {
+        const auto& filename = it.first;
+        auto& promise = it.second;
+        if (promise && c->channel->connected()) {
+          auto result = co_await promise->get();
+          uint32_t return_value = static_cast<uint32_t>(result.return_value);
+          c->log.info_f("Brutal Peeps HP/ATP client patch result for {}: tier={} attempt={}/{} return_value={:08X} checksum={:08X}",
+              filename,
+              tier,
+              attempt,
+              max_attempts,
+              return_value,
+              static_cast<uint32_t>(result.checksum));
+
+          if (is_pc_bp_patch && return_value) {
+            c->brutal_peeps_pc_battleparam_patch_tier = static_cast<int8_t>(tier);
+            c->log.info_f("Brutal Peeps PC BattleParam patch state is now tier {}", tier);
+          }
+
+          if (return_value) {
+            any_success = true;
+          } else {
+            any_zero_return = true;
+          }
+        }
       }
+
+      if (!is_pc_bp_patch || any_success || !any_zero_return || !c->channel->connected() || (attempt >= max_attempts)) {
+        break;
+      }
+
+      c->log.warning_f("Brutal Peeps PC client patch did not find BattleParam table on attempt {}/{}; retrying",
+          attempt,
+          max_attempts);
     }
 
   } catch (const std::exception& e) {
@@ -1018,16 +1317,16 @@ void send_stream_file_index_bb(std::shared_ptr<Client> c) {
 
   std::string contents = bb_stream_file_data_for_client(c);
   c->log.info_f("BB stream file index: sending {} entries from {} bytes",
-      s->bb_stream_file->entries.size(), contents.size());
+      s->data->bb_stream_file->entries.size(), contents.size());
 
   std::vector<S_StreamFileIndexEntry_BB_01EB> entries;
   size_t idx = 0;
-  for (const auto& sf_entry : s->bb_stream_file->entries) {
+  for (const auto& sf_entry : s->data->bb_stream_file->entries) {
     bool offset_past_end = (sf_entry.offset > contents.size());
     bool size_overflows = !offset_past_end && (sf_entry.size > (contents.size() - sf_entry.offset));
 
     c->log.info_f(
-        "PSO Peeps Brutal Peeps stream diag: entry[{}] filename={} offset={:08X} size={:08X} contents_size={:08X}{}{}",
+        "PSO Peeps BBZ stream diag: entry[{}] filename={} offset={:08X} size={:08X} contents_size={:08X}{}{}",
         idx, sf_entry.filename, sf_entry.offset, sf_entry.size, contents.size(),
         offset_past_end ? " OFFSET_PAST_END" : "",
         size_overflows ? " SIZE_OVERFLOWS_END" : "");
@@ -1528,17 +1827,17 @@ void send_card_search_result_t(std::shared_ptr<Client> c, std::shared_ptr<Client
   cmd.reconnect_command_header.size = sizeof(cmd.reconnect_command_header) + sizeof(cmd.reconnect_command);
   cmd.reconnect_command_header.command = 0x19;
   cmd.reconnect_command_header.flag = 0x00;
-  cmd.reconnect_command.address = s->connect_address_for_client(c);
-  cmd.reconnect_command.port = s->game_server_port_for_version(c->version());
+  cmd.reconnect_command.address = s->data->connect_address_for_client(c);
+  cmd.reconnect_command.port = s->data->game_server_port_for_version(c->version());
   cmd.reconnect_command.unused = 0;
 
   std::string location_string;
   if (result_lobby->is_game()) {
-    location_string = std::format("{},,BLOCK01,{}", result_lobby->name, s->name);
+    location_string = std::format("{},,BLOCK01,{}", result_lobby->name, s->data->name);
   } else if (result_lobby->is_ep3()) {
-    location_string = std::format("BLOCK01-C{:02},,BLOCK01,{}", result_lobby->lobby_id - 15, s->name);
+    location_string = std::format("BLOCK01-C{:02},,BLOCK01,{}", result_lobby->lobby_id - 15, s->data->name);
   } else {
-    location_string = std::format("BLOCK01-{:02},,BLOCK01,{}", result_lobby->lobby_id, s->name);
+    location_string = std::format("BLOCK01-{:02},,BLOCK01,{}", result_lobby->lobby_id, s->data->name);
   }
   cmd.location_string.encode(location_string, c->language());
   cmd.extension.lobby_refs[0].menu_id = MenuID::LOBBY;
@@ -1812,7 +2111,7 @@ void send_game_menu_t(std::shared_ptr<Client> c, bool is_spectator_team_list, bo
     e.item_id = 0x00000000;
     e.difficulty_tag = 0x00;
     e.num_players = 0x00;
-    e.name.encode(s->name, c->language());
+    e.name.encode(s->data->name, c->language());
     e.episode = 0x00;
     e.flags = 0x04;
   }
@@ -1825,6 +2124,13 @@ void send_game_menu_t(std::shared_ptr<Client> c, bool is_spectator_team_list, bo
         (client_has_debug || (l->check_flag(Lobby::Flag::IS_CLIENT_CUSTOMIZATION) == c->check_flag(Client::Flag::IS_CLIENT_CUSTOMIZATION))) &&
         (l->check_flag(Lobby::Flag::IS_SPECTATOR_TEAM) == is_spectator_team_list) &&
         (!show_tournaments_only || l->tournament_match)) {
+      // Brutal Peeps rooms rely on version-specific BattleParam patching.
+      // BB Brutal rooms are BB-only; PC Brutal rooms are PC V2-only.
+      if ((l->brutal_peeps_tier >= 1) &&
+          ((l->version_is_allowed(Version::BB_V4) && (c->version() != Version::BB_V4)) ||
+              (l->version_is_allowed(Version::PC_V2) && (c->version() != Version::PC_V2)))) {
+        continue;
+      }
       games.emplace(l);
     }
   }
@@ -1959,20 +2265,21 @@ void send_quest_menu_bb(
 
 template <typename EntryT>
 void send_quest_categories_menu_t(std::shared_ptr<Client> c, QuestMenuType menu_type, Episode episode) {
-  auto l = c->lobby.lock();
   QuestIndex::IncludeCondition include_condition = nullptr;
   if (!c->login->account->check_flag(Account::Flag::DISABLE_QUEST_REQUIREMENTS)) {
+    auto l = c->lobby.lock();
     include_condition = l ? l->quest_include_condition() : nullptr;
   }
 
   uint16_t version_flags = (1 << static_cast<size_t>(c->version()));
+  auto l = c->lobby.lock();
   if (l) {
     version_flags |= l->quest_version_flags();
   }
 
   std::vector<EntryT> entries;
   auto s = c->require_server_state();
-  for (const auto& cat : s->quest_index->categories(menu_type, episode, version_flags, include_condition)) {
+  for (const auto& cat : s->data->quest_index->categories(menu_type, episode, version_flags, include_condition)) {
     auto& e = entries.emplace_back();
     e.menu_id = cat->use_ep2_icon() ? MenuID::QUEST_CATEGORIES_EP2 : MenuID::QUEST_CATEGORIES_EP1_EP3_EP4;
     e.item_id = cat->category_id;
@@ -1995,7 +2302,7 @@ void send_ep3_download_quest_categories_menu(std::shared_ptr<Client> c) {
 
   std::vector<S_QuestMenuEntry_DC_GC_A2_A4> entries;
   auto s = c->require_server_state();
-  for (const auto& [_, cat] : s->ep3_map_index->all_categories()) {
+  for (const auto& [_, cat] : s->data->ep3_map_index->all_categories()) {
     if (cat->check_visibility_flag(vis_flag)) {
       auto& e = entries.emplace_back();
       e.menu_id = MenuID::QUEST_CATEGORIES_EP1_EP3_EP4;
@@ -2018,7 +2325,7 @@ void send_ep3_download_quest_menu(std::shared_ptr<Client> c, uint32_t category_i
       : Episode3::MapIndex::VisibilityFlag::ONLINE_FINAL;
 
   auto s = c->require_server_state();
-  auto category = s->ep3_map_index->category_for_id(category_id);
+  auto category = s->data->ep3_map_index->category_for_id(category_id);
   if (!category->check_visibility_flag(vis_flag)) {
     throw std::runtime_error("category is not visible to this client");
   }
@@ -2222,7 +2529,7 @@ static void send_join_spectator_team(std::shared_ptr<Client> c, std::shared_ptr<
       auto& p = cmd.players[z];
       populate_lobby_data_for_client(p.lobby_data, wc, c);
       p.inventory = wc_p->inventory;
-      p.inventory.encode_for_client(c->version(), s->item_parameter_table_for_encode(c->version()));
+      p.inventory.encode_for_client(c->version(), s->data->item_parameter_table_for_encode(c->version()));
       p.disp = wc_p->disp.to_v123<false>(c->language(), p.inventory.language);
       p.disp.enforce_lobby_join_limits_for_version(c->version());
 
@@ -2236,7 +2543,7 @@ static void send_join_spectator_team(std::shared_ptr<Client> c, std::shared_ptr<
           : wc_p->disp.stats.level.load();
       e.name_color = wc_p->disp.visual.sh.name_color;
 
-      uint32_t name_color = s->name_color_for_client(wc);
+      uint32_t name_color = s->data->name_color_for_client(wc);
       if (name_color) {
         p.disp.visual.sh.name_color = name_color;
         e.name_color = name_color;
@@ -2266,7 +2573,7 @@ static void send_join_spectator_team(std::shared_ptr<Client> c, std::shared_ptr<
       auto& p = cmd.players[client_id];
       p.lobby_data = entry.lobby_data;
       p.inventory = entry.inventory;
-      p.inventory.encode_for_client(c->version(), s->item_parameter_table_for_encode(c->version()));
+      p.inventory.encode_for_client(c->version(), s->data->item_parameter_table_for_encode(c->version()));
       p.disp = entry.disp;
       p.disp.enforce_lobby_join_limits_for_version(c->version());
 
@@ -2305,7 +2612,7 @@ static void send_join_spectator_team(std::shared_ptr<Client> c, std::shared_ptr<
           : other_p->disp.stats.level.load();
       cmd_e.name_color = other_p->disp.visual.sh.name_color;
 
-      uint32_t name_color = s->name_color_for_client(other_c);
+      uint32_t name_color = s->data->name_color_for_client(other_c);
       if (name_color) {
         cmd_p.disp.visual.sh.name_color = name_color;
         cmd_e.name_color = name_color;
@@ -2415,11 +2722,11 @@ void send_join_game(std::shared_ptr<Client> c, std::shared_ptr<Lobby> l) {
           auto other_p = lc->character_file();
           auto& cmd_p = cmd.players_ep3[x];
           cmd_p.inventory = other_p->inventory;
-          cmd_p.inventory.encode_for_client(c->version(), s->item_parameter_table_for_encode(c->version()));
+          cmd_p.inventory.encode_for_client(c->version(), s->data->item_parameter_table_for_encode(c->version()));
           cmd_p.disp = convert_player_disp_data<PlayerDispDataV123>(
               other_p->disp, c->language(), other_p->inventory.language);
           cmd_p.disp.enforce_lobby_join_limits_for_version(c->version());
-          uint32_t name_color = s->name_color_for_client(lc);
+          uint32_t name_color = s->data->name_color_for_client(lc);
           if (name_color) {
             cmd_p.disp.visual.sh.name_color = name_color;
           }
@@ -2529,13 +2836,13 @@ void send_join_lobby_t(std::shared_ptr<Client> c, std::shared_ptr<Lobby> l, std:
     auto& e = cmd.entries[used_entries++];
     populate_lobby_data_for_client(e.lobby_data, lc, c);
     e.inventory = lp->inventory;
-    e.inventory.encode_for_client(c->version(), s->item_parameter_table_for_encode(c->version()));
+    e.inventory.encode_for_client(c->version(), s->data->item_parameter_table_for_encode(c->version()));
     if ((lc == c) && is_v1_or_v2(c->version()) && lc->v1_v2_last_reported_disp) {
       e.disp = convert_player_disp_data<DispDataT>(*lc->v1_v2_last_reported_disp, c->language(), lp->inventory.language);
     } else {
       e.disp = convert_player_disp_data<DispDataT>(lp->disp, c->language(), lp->inventory.language);
       e.disp.enforce_lobby_join_limits_for_version(c->version());
-      uint32_t name_color = s->name_color_for_client(lc);
+      uint32_t name_color = s->data->name_color_for_client(lc);
       if (name_color) {
         e.disp.visual.sh.name_color = name_color;
         if (is_v1_or_v2(c->version())) {
@@ -2602,10 +2909,10 @@ void send_join_lobby_xb(std::shared_ptr<Client> c, std::shared_ptr<Lobby> l, std
     auto& e = cmd.entries[used_entries++];
     populate_lobby_data_for_client(e.lobby_data, lc, c);
     e.inventory = lp->inventory;
-    e.inventory.encode_for_client(c->version(), s->item_parameter_table_for_encode(c->version()));
+    e.inventory.encode_for_client(c->version(), s->data->item_parameter_table_for_encode(c->version()));
     e.disp = convert_player_disp_data<PlayerDispDataV123>(lp->disp, c->language(), lp->inventory.language);
     e.disp.enforce_lobby_join_limits_for_version(c->version());
-    uint32_t name_color = s->name_color_for_client(lc);
+    uint32_t name_color = s->data->name_color_for_client(lc);
     if (name_color) {
       e.disp.visual.sh.name_color = name_color;
     }
@@ -2650,13 +2957,13 @@ void send_join_lobby_dc_nte(std::shared_ptr<Client> c, std::shared_ptr<Lobby> l,
     auto& e = cmd.entries[used_entries++];
     populate_lobby_data_for_client(e.lobby_data, lc, c);
     e.inventory = lp->inventory;
-    e.inventory.encode_for_client(c->version(), s->item_parameter_table_for_encode(c->version()));
+    e.inventory.encode_for_client(c->version(), s->data->item_parameter_table_for_encode(c->version()));
     if ((lc == c) && is_v1_or_v2(c->version()) && lc->v1_v2_last_reported_disp) {
       e.disp = convert_player_disp_data<PlayerDispDataV123>(*lc->v1_v2_last_reported_disp, c->language(), lp->inventory.language);
     } else {
       e.disp = convert_player_disp_data<PlayerDispDataV123>(lp->disp, c->language(), lp->inventory.language);
       e.disp.enforce_lobby_join_limits_for_version(c->version());
-      uint32_t name_color = s->name_color_for_client(lc);
+      uint32_t name_color = s->data->name_color_for_client(lc);
       if (name_color) {
         e.disp.visual.sh.name_color = name_color;
         e.disp.visual.sh.compute_name_color_checksum();
@@ -2808,7 +3115,7 @@ asio::awaitable<GetPlayerInfoResult> send_get_player_info(std::shared_ptr<Client
     }
     try {
       auto s = c->require_server_state();
-      auto fn = s->client_functions->get("GetExtendedPlayerInfo", c->specific_version);
+      auto fn = s->data->client_functions->get("GetExtendedPlayerInfo", c->specific_version);
       send_function_call(c->channel, c->enabled_flags, fn);
       c->function_call_response_queue.emplace_back(std::make_shared<AsyncPromise<C_ExecuteCodeResult_B3>>());
       full_req_sent = true;
@@ -2835,7 +3142,7 @@ void send_execute_item_trade(std::shared_ptr<Client> c, const std::vector<ItemDa
   }
   cmd.target_client_id = c->lobby_client_id;
   cmd.item_count = items.size();
-  auto item_parameter_table = s->item_parameter_table_for_encode(c->version());
+  auto item_parameter_table = s->data->item_parameter_table_for_encode(c->version());
   for (size_t x = 0; x < items.size(); x++) {
     cmd.item_datas[x] = items[x];
     cmd.item_datas[x].encode_for_version(c->version(), item_parameter_table);
@@ -3116,7 +3423,7 @@ void send_game_item_state(std::shared_ptr<Client> c) {
       fi.room_id = 0;
       fi.drop_number = (floor == 0) ? 0xFFFF : (decompressed_header.next_drop_number_per_floor.at(floor - 1)++);
       fi.item = item->data;
-      fi.item.encode_for_version(c->version(), s->item_parameter_table_for_encode(c->version()));
+      fi.item.encode_for_version(c->version(), s->data->item_parameter_table_for_encode(c->version()));
       floor_items_w.put(fi);
 
       decompressed_header.floor_item_count_per_floor.at(floor)++;
@@ -3141,7 +3448,7 @@ void send_game_item_state(std::shared_ptr<Client> c) {
       }
       uint8_t subcommand = get_pre_v1_subcommand(c->version(), 0x4F, 0x56, 0x5D);
       G_DropStackedItem_PC_V3_BB_6x5D cmd = {{{subcommand, 0x0A, 0x0000}, floor, 0, item->pos, item->data}, 0};
-      cmd.item_data.encode_for_version(c->version(), s->item_parameter_table_for_encode(c->version()));
+      cmd.item_data.encode_for_version(c->version(), s->data->item_parameter_table_for_encode(c->version()));
       w.put(cmd);
     }
   }
@@ -3429,7 +3736,7 @@ void send_drop_item_to_channel(
     uint8_t subcommand = get_pre_v1_subcommand(ch->version, 0x51, 0x58, 0x5F);
     G_DropItem_PC_V3_BB_6x5F cmd = {
         {{subcommand, 0x0B, 0x0000}, {floor, source_type, entity_index, pos, 0, 0, item}}, 0};
-    cmd.item.item.encode_for_version(ch->version, s->item_parameter_table_for_encode(ch->version));
+    cmd.item.item.encode_for_version(ch->version, s->data->item_parameter_table_for_encode(ch->version));
     ch->send(0x60, 0x00, &cmd, sizeof(cmd));
   }
 }
@@ -3442,7 +3749,7 @@ void send_drop_stacked_item_to_channel(
     const VectorXZF& pos) {
   uint8_t subcommand = get_pre_v1_subcommand(ch->version, 0x4F, 0x56, 0x5D);
   G_DropStackedItem_PC_V3_BB_6x5D cmd = {{{subcommand, 0x0A, 0x0000}, floor, 0, pos, item}, 0};
-  cmd.item_data.encode_for_version(ch->version, s->item_parameter_table_for_encode(ch->version));
+  cmd.item_data.encode_for_version(ch->version, s->data->item_parameter_table_for_encode(ch->version));
   ch->send(0x60, 0x00, &cmd, sizeof(cmd));
 }
 
@@ -3652,8 +3959,8 @@ void send_ep3_card_list_update(std::shared_ptr<Client> c) {
   if (!c->check_flag(Client::Flag::HAS_EP3_CARD_DEFS)) {
     auto s = c->require_server_state();
     const auto& data = (c->version() == Version::GC_EP3_NTE)
-        ? s->ep3_card_index_trial->get_compressed_definitions()
-        : s->ep3_card_index->get_compressed_definitions();
+        ? s->data->ep3_card_index_trial->get_compressed_definitions()
+        : s->data->ep3_card_index->get_compressed_definitions();
 
     phosg::StringWriter w;
     w.put_u32l(data.size());
@@ -3675,8 +3982,8 @@ void send_ep3_media_update(std::shared_ptr<Client> c, uint32_t type, uint32_t wh
 
 void send_ep3_rank_update(std::shared_ptr<Client> c) {
   auto s = c->require_server_state();
-  uint32_t current_meseta = s->ep3_infinite_meseta ? 1000000 : c->login->account->ep3_current_meseta;
-  uint32_t total_meseta_earned = s->ep3_infinite_meseta ? 1000000 : c->login->account->ep3_total_meseta_earned;
+  uint32_t current_meseta = s->data->ep3_infinite_meseta ? 1000000 : c->login->account->ep3_current_meseta;
+  uint32_t total_meseta_earned = s->data->ep3_infinite_meseta ? 1000000 : c->login->account->ep3_total_meseta_earned;
   S_RankUpdate_Ep3_B7 cmd = {0, {}, current_meseta, total_meseta_earned, 0xFFFFFFFF};
   send_command_t(c, 0xB7, 0x00, cmd);
 }
@@ -3732,7 +4039,7 @@ void send_ep3_confirm_tournament_entry(
   if (tourn) {
     auto s = c->require_server_state();
     cmd.tournament_name.encode(tourn->get_name(), c->language());
-    cmd.server_name.encode(s->name, c->language());
+    cmd.server_name.encode(s->data->name, c->language());
     // TODO: Fill this in appropriately when we support scheduled start times
     cmd.start_time.encode("Unknown", c->language());
     auto& teams = tourn->all_teams();
@@ -4039,7 +4346,7 @@ void send_ep3_set_tournament_player_decks_t(std::shared_ptr<Client> c) {
   add_entries_for_team(match->preceding_b->winner_team, 2);
 
   if ((c->version() != Version::GC_EP3_NTE) &&
-      !(s->ep3_behavior_flags & Episode3::BehaviorFlag::DISABLE_MASKING)) {
+      !(s->data->ep3_behavior_flags & Episode3::BehaviorFlag::DISABLE_MASKING)) {
     uint8_t mask_key = (phosg::random_object<uint32_t>() % 0xFF) + 1;
     set_mask_for_ep3_game_command(&cmd, sizeof(cmd), mask_key);
   }
@@ -4100,14 +4407,14 @@ void send_ep3_tournament_match_result(std::shared_ptr<Lobby> l, uint32_t meseta_
     cmd.winner_team_id = (match->preceding_b->winner_team == match->winner_team);
     cmd.meseta_amount = meseta_reward;
     cmd.meseta_reward_text.encode("You got %s meseta!", Language::ENGLISH);
-    if ((lc->version() != Version::GC_EP3_NTE) && !(s->ep3_behavior_flags & Episode3::BehaviorFlag::DISABLE_MASKING)) {
+    if ((lc->version() != Version::GC_EP3_NTE) && !(s->data->ep3_behavior_flags & Episode3::BehaviorFlag::DISABLE_MASKING)) {
       uint8_t mask_key = (phosg::random_object<uint32_t>() % 0xFF) + 1;
       set_mask_for_ep3_game_command(&cmd, sizeof(cmd), mask_key);
     }
     send_command_t(lc, 0xC9, 0x00, cmd);
   }
 
-  if (s->ep3_behavior_flags & Episode3::BehaviorFlag::ENABLE_STATUS_MESSAGES) {
+  if (s->data->ep3_behavior_flags & Episode3::BehaviorFlag::ENABLE_STATUS_MESSAGES) {
     send_text_message_fmt(l, "$C5TOURN/{:X}/{} WIN {}",
         tourn->get_menu_item_id(), match->round_num,
         match->winner_team == match->preceding_a->winner_team ? 'A' : 'B');
@@ -4137,7 +4444,7 @@ void send_ep3_update_game_metadata(std::shared_ptr<Lobby> l) {
     cmd.total_spectators = total_spectators;
     for (auto c : l->clients) {
       if (c) {
-        if ((c->version() == Version::GC_EP3) && !(s->ep3_behavior_flags & Episode3::BehaviorFlag::DISABLE_MASKING)) {
+        if ((c->version() == Version::GC_EP3) && !(s->data->ep3_behavior_flags & Episode3::BehaviorFlag::DISABLE_MASKING)) {
           G_SetGameMetadata_Ep3_6xB4x52 masked_cmd = cmd;
           uint8_t mask_key = (phosg::random_object<uint32_t>() % 0xFF) + 1;
           set_mask_for_ep3_game_command(&masked_cmd, sizeof(masked_cmd), mask_key);
@@ -4172,7 +4479,7 @@ void send_ep3_update_game_metadata(std::shared_ptr<Lobby> l) {
       cmd.text.encode(text, Language::ENGLISH);
       for (auto c : watcher_l->clients) {
         if (c) {
-          if ((c->version() == Version::GC_EP3) && !(s->ep3_behavior_flags & Episode3::BehaviorFlag::DISABLE_MASKING)) {
+          if ((c->version() == Version::GC_EP3) && !(s->data->ep3_behavior_flags & Episode3::BehaviorFlag::DISABLE_MASKING)) {
             G_SetGameMetadata_Ep3_6xB4x52 masked_cmd = cmd;
             uint8_t mask_key = (phosg::random_object<uint32_t>() % 0xFF) + 1;
             set_mask_for_ep3_game_command(&masked_cmd, sizeof(masked_cmd), mask_key);
@@ -4239,7 +4546,7 @@ void send_quest_file_chunk(
 
   c->log.info_f("Sending quest file chunk {}:{}", filename, chunk_index);
   const auto& s = c->require_server_state();
-  c->channel->send(is_download_quest ? 0xA7 : 0x13, chunk_index, &cmd, sizeof(cmd), s->hide_download_commands);
+  c->channel->send(is_download_quest ? 0xA7 : 0x13, chunk_index, &cmd, sizeof(cmd), s->data->hide_download_commands);
 }
 
 template <typename CommandT>
@@ -4429,33 +4736,33 @@ bool send_ep3_start_tournament_deck_select_if_all_clients_ready(std::shared_ptr<
 
 void send_ep3_card_auction(std::shared_ptr<Lobby> l) {
   auto s = l->require_server_state();
-  if ((s->ep3_card_auction_points == 0) ||
-      (s->ep3_card_auction_min_size == 0) ||
-      (s->ep3_card_auction_max_size == 0)) {
+  if ((s->data->ep3_card_auction_points == 0) ||
+      (s->data->ep3_card_auction_min_size == 0) ||
+      (s->data->ep3_card_auction_max_size == 0)) {
     throw std::runtime_error("card auctions are not configured on this server");
   }
 
   uint16_t num_cards;
-  if (s->ep3_card_auction_min_size == s->ep3_card_auction_max_size) {
-    num_cards = s->ep3_card_auction_min_size;
+  if (s->data->ep3_card_auction_min_size == s->data->ep3_card_auction_max_size) {
+    num_cards = s->data->ep3_card_auction_min_size;
   } else {
-    num_cards = s->ep3_card_auction_min_size +
-        (phosg::random_object<uint16_t>() % (s->ep3_card_auction_max_size - s->ep3_card_auction_min_size + 1));
+    num_cards = s->data->ep3_card_auction_min_size +
+        (phosg::random_object<uint16_t>() % (s->data->ep3_card_auction_max_size - s->data->ep3_card_auction_min_size + 1));
   }
   num_cards = std::min<uint16_t>(num_cards, 0x14);
 
-  auto card_index = l->is_ep3_nte() ? s->ep3_card_index_trial : s->ep3_card_index;
+  auto card_index = l->is_ep3_nte() ? s->data->ep3_card_index_trial : s->data->ep3_card_index;
 
   uint64_t distribution_size = 0;
-  for (const auto& e : s->ep3_card_auction_pool) {
+  for (const auto& e : s->data->ep3_card_auction_pool) {
     distribution_size += e.probability;
   }
 
   S_StartCardAuction_Ep3_EF cmd;
-  cmd.points_available = s->ep3_card_auction_points;
+  cmd.points_available = s->data->ep3_card_auction_points;
   for (size_t z = 0; z < num_cards; z++) {
     uint64_t v = phosg::random_object<uint64_t>() % distribution_size;
-    for (const auto& e : s->ep3_card_auction_pool) {
+    for (const auto& e : s->data->ep3_card_auction_pool) {
       if (v >= e.probability) {
         v -= e.probability;
       } else {

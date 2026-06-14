@@ -251,6 +251,9 @@ ClientFunctionIndex::ClientFunctionIndex(const std::string& root_dir, bool raise
         add_directory(item_path);
       } else if (item_path.ends_with(".s") && std::filesystem::is_regular_file(item_path)) {
         client_functions_log.debug_f("Adding {} from {}", item_name, item_path);
+        if (item_name.find("Dragon") != std::string::npos) {
+          client_functions_log.warning_f("Dragon source load debug: adding {} from {}", item_name, item_path);
+        }
         if (!source_files.emplace(item_name, phosg::load_file(item_path)).second) {
           throw std::runtime_error(std::format("Duplicate source filename: {}", item_name));
         }
@@ -283,6 +286,20 @@ ClientFunctionIndex::ClientFunctionIndex(const std::string& root_dir, bool raise
       preprocessed = preprocess_function_code(source);
     } catch (const std::exception& e) {
       throw std::runtime_error(std::format("({} preprocessing) {}", source_filename, e.what()));
+    }
+
+    if (source_filename.find("Dragon") != std::string::npos) {
+      client_functions_log.warning_f(
+          "Dragon preprocess debug: source={} produced {} version chunk(s)",
+          source_filename,
+          preprocessed.size());
+      for (const auto& [debug_sv, debug_source] : preprocessed) {
+        client_functions_log.warning_f(
+            "Dragon preprocess debug: source={} sv={} chunk_size={}",
+            source_filename,
+            str_for_specific_version(debug_sv),
+            debug_source.size());
+      }
     }
 
     for (const auto& [specific_version, source] : preprocessed) {
@@ -444,6 +461,37 @@ ClientFunctionIndex::ClientFunctionIndex(const std::string& root_dir, bool raise
       }
     }
   }
+
+  for (const char* probe_name : {"DragonVisualFix", "PsoPeepsDragonVisualFixPC", "RaresInQuests"}) {
+    for (uint32_t probe_sv : {0x324F4A57u, SPECIFIC_VERSION_X86_INDETERMINATE}) {
+      std::string key = cache_key(probe_name, probe_sv);
+      auto all_it = this->all_functions.find(key);
+      auto map_it = this->functions_by_specific_version.find(probe_sv);
+      bool in_version_map = false;
+      if (map_it != this->functions_by_specific_version.end()) {
+        in_version_map = map_it->second.count(key);
+      }
+      client_functions_log.warning_f(
+          "Client function probe: name={} sv={} key={} all_functions={} version_map={} map_size={}",
+          probe_name,
+          str_for_specific_version(probe_sv),
+          key,
+          all_it != this->all_functions.end(),
+          in_version_map,
+          map_it == this->functions_by_specific_version.end() ? 0 : map_it->second.size());
+      if (all_it != this->all_functions.end()) {
+        const auto& fn = all_it->second;
+        client_functions_log.warning_f(
+            "Client function probe detail: short={} long={} visibility={} specific_version={} arch={} menu_item_id={:08X}",
+            fn->short_name,
+            fn->long_name,
+            phosg::name_for_enum(fn->visibility),
+            str_for_specific_version(fn->specific_version),
+            name_for_architecture(fn->arch),
+            static_cast<uint32_t>(fn->menu_item_id));
+      }
+    }
+  }
 }
 
 std::shared_ptr<const Menu> ClientFunctionIndex::patch_switches_menu(
@@ -455,15 +503,44 @@ std::shared_ptr<const Menu> ClientFunctionIndex::patch_switches_menu(
 
   auto map_it = this->functions_by_specific_version.find(specific_version);
   if (map_it != this->functions_by_specific_version.end()) {
+    client_functions_log.warning_f(
+        "Patch menu debug: building menu for specific_version={} with {} function entries",
+        str_for_specific_version(specific_version),
+        map_it->second.size());
+
     for (auto [name, fn] : map_it->second) {
-      if (fn->appears_in_patches_menu() && !server_auto_patches_enabled.count(fn->short_name)) {
+      bool appears = fn->appears_in_patches_menu();
+      bool server_auto = server_auto_patches_enabled.count(fn->short_name);
+      bool client_enabled = client_auto_patches_enabled.count(fn->short_name);
+      bool dragon_debug =
+          (fn->short_name.find("Dragon") != std::string::npos) ||
+          (fn->long_name.find("Dragon") != std::string::npos);
+
+      if (dragon_debug || appears) {
+        client_functions_log.warning_f(
+            "Patch menu debug: key={} short={} long={} visibility={} appears={} server_auto={} client_enabled={} menu_item_id={:08X}",
+            name,
+            fn->short_name,
+            fn->long_name,
+            phosg::name_for_enum(fn->visibility),
+            appears,
+            server_auto,
+            client_enabled,
+            static_cast<uint32_t>(fn->menu_item_id));
+      }
+
+      if (appears && !server_auto) {
         std::string item_text;
-        item_text.push_back(client_auto_patches_enabled.count(fn->short_name) ? '*' : '-');
+        item_text.push_back(client_enabled ? '*' : '-');
         item_text += fn->long_name.empty() ? fn->short_name : fn->long_name;
         ret->items.emplace_back(
             fn->menu_item_id, item_text, fn->description, MenuItem::Flag::REQUIRES_SEND_FUNCTION_CALL_RUNS_CODE);
       }
     }
+  } else {
+    client_functions_log.warning_f(
+        "Patch menu debug: no functions for specific_version={}",
+        str_for_specific_version(specific_version));
   }
   return ret;
 }
