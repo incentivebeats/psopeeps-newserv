@@ -21,6 +21,7 @@ static std::mutex config_mutex;
 static std::mutex spool_mutex;
 static Config current_config;
 static std::atomic<bool> heartbeat_task_started(false);
+static asio::io_context* login_lock_io_context = nullptr;
 
 static uint64_t now_usecs() {
   using namespace std::chrono;
@@ -470,6 +471,8 @@ static asio::awaitable<void> login_lock_heartbeat_task() {
 }
 
 void start_login_lock_heartbeat_task(asio::io_context& io_context) {
+  login_lock_io_context = &io_context;
+
   bool expected = false;
   if (!heartbeat_task_started.compare_exchange_strong(expected, true)) {
     return;
@@ -598,6 +601,72 @@ asio::awaitable<LoginLockAcquireResult> acquire_login_lock(
   }
 }
 
+static asio::awaitable<void> send_login_lock_session_end(
+    uint32_t account_id,
+    std::string session_nonce,
+    std::string version_name) {
+  auto cfg = get_config();
+
+  if (!cfg.enabled || !cfg.enable_login_locks) {
+    co_return;
+  }
+  if (cfg.coordinator_url.empty()) {
+    std::fprintf(stderr,
+        "[AccountSync] warning login_lock_session_end_skipped reason=coordinator_url_not_configured account_id=%010u source=%s nonce=%s\n",
+        static_cast<unsigned int>(account_id),
+        source_label(cfg).c_str(),
+        session_nonce.c_str());
+    co_return;
+  }
+  if (session_nonce.empty()) {
+    std::fprintf(stderr,
+        "[AccountSync] warning login_lock_session_end_skipped reason=empty_session_nonce account_id=%010u source=%s version=%s\n",
+        static_cast<unsigned int>(account_id),
+        source_label(cfg).c_str(),
+        version_name.c_str());
+    co_return;
+  }
+
+  std::string body = std::format(
+      "{{\"account_id\":{},\"account_id_str\":\"{:010}\",\"source\":\"{}\",\"source_region\":\"{}\",\"source_ship\":\"{}\",\"account_store\":\"{}\",\"version\":\"{}\",\"session_nonce\":\"{}\"}}",
+      static_cast<unsigned int>(account_id),
+      static_cast<unsigned int>(account_id),
+      json_escape(source_label(cfg)),
+      json_escape(cfg.source_region),
+      json_escape(cfg.source_ship),
+      json_escape(cfg.account_store),
+      json_escape(version_name),
+      json_escape(session_nonce));
+
+  try {
+    phosg::JSON response = co_await post_json_with_timeout(cfg, "/account-locks/session-end", body);
+    bool ok = response.get_bool("ok", response.get_bool("OK", false));
+    if (!ok) {
+      std::fprintf(stderr,
+          "[AccountSync] warning login_lock_session_end_rejected account_id=%010u source=%s nonce=%s response=%s\n",
+          static_cast<unsigned int>(account_id),
+          source_label(cfg).c_str(),
+          session_nonce.c_str(),
+          response.serialize().c_str());
+      co_return;
+    }
+
+    std::fprintf(stderr,
+        "[AccountSync] login_lock_session_end_ok account_id=%010u source=%s nonce=%s\n",
+        static_cast<unsigned int>(account_id),
+        source_label(cfg).c_str(),
+        session_nonce.c_str());
+
+  } catch (const std::exception& e) {
+    std::fprintf(stderr,
+        "[AccountSync] warning login_lock_session_end_failed account_id=%010u source=%s nonce=%s error=%s\n",
+        static_cast<unsigned int>(account_id),
+        source_label(cfg).c_str(),
+        session_nonce.c_str(),
+        e.what());
+  }
+}
+
 void notify_login_session_end(
     uint32_t account_id,
     const std::string& session_nonce,
@@ -616,6 +685,19 @@ void notify_login_session_end(
       static_cast<unsigned int>(account_id),
       session_nonce.c_str(),
       version_name.c_str());
+
+  if (login_lock_io_context) {
+    asio::co_spawn(
+        *login_lock_io_context,
+        send_login_lock_session_end(account_id, session_nonce, version_name),
+        asio::detached);
+  } else {
+    std::fprintf(stderr,
+        "[AccountSync] warning login_lock_session_end_not_spawned reason=io_context_not_available account_id=%010u source=%s nonce=%s\n",
+        static_cast<unsigned int>(account_id),
+        source_label(cfg).c_str(),
+        session_nonce.c_str());
+  }
 
   auto line = base_event_json(cfg, "login_session_end", account_id) +
       std::format(",\"session_nonce\":\"{}\",\"version\":\"{}\"}}",
