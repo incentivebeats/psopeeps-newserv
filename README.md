@@ -1,4 +1,4 @@
-# PSO Peeps newserv
+# psopeeps-newserv
 PSO Peeps is a private multi-platform Phantasy Star Online server supporting DC V2, PC V2, GC V3, and Blue Burst. Our ships feature XP boosts, optional experimental crossplay between all versions, increased difficulty tiers, and a hardcore mode.  
   
 This is the PSO Peeps maintained version of [newserv](https://github.com/fuzziqersoftware/newserv), a game server, proxy, and reverse-engineering tool for Phantasy Star Online.
