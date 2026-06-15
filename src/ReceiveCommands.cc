@@ -107,7 +107,7 @@ static bool enforce_bb_test_ship_lock(std::shared_ptr<Client> c, bool current_sh
 }
 
 static std::string bb_hardcore_filename(std::shared_ptr<Client> c) {
-  return c->character_filename() + ".hardcore";
+  return Client::hardcore_character_marker_filename(c->login->bb_license->username, c->bb_character_index);
 }
 
 static std::string bb_hardcore_ineligible_filename(std::shared_ptr<Client> c) {

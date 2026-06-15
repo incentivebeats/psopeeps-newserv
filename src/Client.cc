@@ -1,4 +1,6 @@
 #include "Client.hh"
+
+#include <fstream>
 #include "TeamSync.hh"
 
 #include <errno.h>
@@ -633,6 +635,15 @@ std::string Client::character_filename(const std::string& bb_username, ssize_t i
     throw std::logic_error("character index is not set");
   }
   return std::format("system/players/player_{}_{}.psochar", bb_username, index);
+}
+
+std::string Client::hardcore_character_marker_filename(const std::string& bb_username, ssize_t index) {
+  return Client::character_filename(bb_username, index) + ".hardcore";
+}
+
+bool Client::character_has_hardcore_marker(const std::string& bb_username, ssize_t index) {
+  std::ifstream f(Client::hardcore_character_marker_filename(bb_username, index));
+  return f.good();
 }
 
 std::string Client::backup_character_filename(uint32_t account_id, size_t index, bool is_ep3) {
