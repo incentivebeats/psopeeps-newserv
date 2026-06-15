@@ -420,7 +420,11 @@ ChatCommandDefinition cc_bank(
         send_text_message(a.c, "$C6Using shared bank");
 
       } else if (new_char_index <= 127) {
-        a.c->change_bank(new_char_index - 1);
+        ssize_t target_char_index = new_char_index - 1;
+        if (Client::character_has_hardcore_marker(a.c->login->bb_license->username, target_char_index)) {
+          throw precondition_failed("$C6That character bank is locked for Hardcore.");
+        }
+        a.c->change_bank(target_char_index);
         send_text_message_fmt(a.c, "$C6Using character {}'s bank", new_char_index);
 
       } else {

@@ -307,6 +307,8 @@ public:
   void save_guild_card_file() const;
 
   static std::string character_filename(const std::string& bb_username, ssize_t index);
+  static std::string hardcore_character_marker_filename(const std::string& bb_username, ssize_t index);
+  static bool character_has_hardcore_marker(const std::string& bb_username, ssize_t index);
   static std::string backup_character_filename(uint32_t account_id, size_t index, bool is_ep3);
   std::string character_filename() const;
   std::shared_ptr<PSOBBCharacterFile> character_file(bool allow_load = true, bool allow_overlay = true);
