@@ -351,7 +351,7 @@ static void send_main_menu(std::shared_ptr<Client> c) {
       (s->data->proxy_destinations_pc.empty() ? MenuItem::Flag::INVISIBLE_ON_PC : 0) |
       (s->data->proxy_destinations_gc.empty() ? MenuItem::Flag::INVISIBLE_ON_GC : 0) |
       (s->data->proxy_destinations_xb.empty() ? MenuItem::Flag::INVISIBLE_ON_XB : 0) |
-      (bb_destination_transport_menu ? 0 : MenuItem::Flag::INVISIBLE_ON_BB);
+      MenuItem::Flag::INVISIBLE_ON_BB;
   main_menu->items.emplace_back(MainMenuItemID::PROXY_DESTINATIONS, "Proxy server",
       "Connect to another\nserver through the\nproxy", proxy_destinations_menu_item_flags);
 
