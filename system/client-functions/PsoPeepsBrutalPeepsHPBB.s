@@ -10,6 +10,9 @@ reloc0:
   .offsetof start
 
 start:
+  mov    eax, 1
+  ret
+
   push   ebx
   push   esi
   push   edi
