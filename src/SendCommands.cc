@@ -778,7 +778,7 @@ static std::string bb_stream_file_data_for_client(std::shared_ptr<Client> c) {
 static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> send_brutal_peeps_hp_patch_bb_now(
     std::shared_ptr<Client> c,
     int64_t tier,
-    bool force_all_tables) {
+    const std::string& requested_bp_filename) {
   std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_ExecuteCodeResult_B3>>>> promises;
 
   if (c->version() != Version::BB_V4) {
@@ -832,33 +832,7 @@ static std::vector<std::pair<std::string, std::shared_ptr<AsyncPromise<C_Execute
     }();
 
     std::vector<std::string> bp_filenames;
-
-    if (!force_all_tables) {
-      auto l = c->lobby.lock();
-      if (l && l->is_game()) {
-        switch (l->episode) {
-          case Episode::EP1:
-            bp_filenames.emplace_back("BattleParamEntry_on.dat");
-            break;
-          case Episode::EP2:
-            bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
-            break;
-          case Episode::EP4:
-            bp_filenames.emplace_back("BattleParamEntry_ep4_on.dat");
-            break;
-          default:
-            break;
-        }
-      }
-    }
-
-    // Before the room exists, or when explicitly requested from the BB ship-menu path,
-    // patch all online BB BattleParam tables before enemies initialize.
-    if (bp_filenames.empty()) {
-      bp_filenames.emplace_back("BattleParamEntry_on.dat");
-      bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
-      bp_filenames.emplace_back("BattleParamEntry_ep4_on.dat");
-    }
+    bp_filenames.emplace_back(requested_bp_filename);
 
     constexpr uint32_t scan_start = 0x16760000;
     constexpr uint32_t scan_end = 0x16A90000;
@@ -1259,23 +1233,99 @@ asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, i
   try {
     co_await prepare_client_for_patches(c);
 
-    const bool is_pc_bp_patch = (c->version() == Version::PC_V2);
-    const size_t max_attempts = 1;
+    if (c->version() == Version::PC_V2) {
+      const size_t max_attempts = 1;
 
-    for (size_t attempt = 1; attempt <= max_attempts; attempt++) {
-      auto promises = is_pc_bp_patch
-          ? send_brutal_peeps_hp_patch_pc_now(c, tier)
-          : send_brutal_peeps_hp_patch_bb_now(c, tier, force_all_tables);
+      for (size_t attempt = 1; attempt <= max_attempts; attempt++) {
+        auto promises = send_brutal_peeps_hp_patch_pc_now(c, tier);
 
-      bool any_zero_return = false;
-      bool any_success = false;
+        bool any_zero_return = false;
+        bool any_success = false;
+
+        for (auto& it : promises) {
+          const auto& filename = it.first;
+          auto& promise = it.second;
+          if (promise && c->channel->connected()) {
+            auto result = co_await promise->get();
+            uint32_t return_value = static_cast<uint32_t>(result.return_value);
+            c->log.info_f("Brutal Peeps HP/ATP client patch result for {}: tier={} attempt={}/{} return_value={:08X} checksum={:08X}",
+                filename,
+                tier,
+                attempt,
+                max_attempts,
+                return_value,
+                static_cast<uint32_t>(result.checksum));
+
+            if (return_value) {
+              c->brutal_peeps_pc_battleparam_patch_tier = static_cast<int8_t>(tier);
+              c->log.info_f("Brutal Peeps PC BattleParam patch state is now tier {}", tier);
+              any_success = true;
+            } else {
+              any_zero_return = true;
+            }
+          }
+        }
+
+        if (any_success || !any_zero_return || !c->channel->connected() || (attempt >= max_attempts)) {
+          break;
+        }
+
+        c->log.warning_f("Brutal Peeps PC client patch did not find BattleParam table on attempt {}/{}; retrying",
+            attempt,
+            max_attempts);
+      }
+
+      co_return;
+    }
+
+    if (c->version() != Version::BB_V4) {
+      co_return;
+    }
+
+    std::vector<std::string> bp_filenames;
+
+    if (!force_all_tables) {
+      auto l = c->lobby.lock();
+      if (l && l->is_game()) {
+        switch (l->episode) {
+          case Episode::EP1:
+            bp_filenames.emplace_back("BattleParamEntry_on.dat");
+            break;
+          case Episode::EP2:
+            bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
+            break;
+          case Episode::EP4:
+            bp_filenames.emplace_back("BattleParamEntry_ep4_on.dat");
+            break;
+          default:
+            break;
+        }
+      }
+    }
+
+    // Before the room exists, or when explicitly requested from the BB
+    // ship-menu path, patch all online BB BattleParam tables. Send and await
+    // each function call separately so only one response is outstanding.
+    if (bp_filenames.empty()) {
+      bp_filenames.emplace_back("BattleParamEntry_on.dat");
+      bp_filenames.emplace_back("BattleParamEntry_lab_on.dat");
+      bp_filenames.emplace_back("BattleParamEntry_ep4_on.dat");
+    }
+
+    constexpr size_t attempt = 1;
+    constexpr size_t max_attempts = 1;
+
+    for (const auto& bp_filename : bp_filenames) {
+      auto promises = send_brutal_peeps_hp_patch_bb_now(c, tier, bp_filename);
 
       for (auto& it : promises) {
         const auto& filename = it.first;
         auto& promise = it.second;
+
         if (promise && c->channel->connected()) {
           auto result = co_await promise->get();
           uint32_t return_value = static_cast<uint32_t>(result.return_value);
+
           c->log.info_f("Brutal Peeps HP/ATP client patch result for {}: tier={} attempt={}/{} return_value={:08X} checksum={:08X}",
               filename,
               tier,
@@ -1283,27 +1333,12 @@ asio::awaitable<void> send_brutal_peeps_hp_patch_bb(std::shared_ptr<Client> c, i
               max_attempts,
               return_value,
               static_cast<uint32_t>(result.checksum));
-
-          if (is_pc_bp_patch && return_value) {
-            c->brutal_peeps_pc_battleparam_patch_tier = static_cast<int8_t>(tier);
-            c->log.info_f("Brutal Peeps PC BattleParam patch state is now tier {}", tier);
-          }
-
-          if (return_value) {
-            any_success = true;
-          } else {
-            any_zero_return = true;
-          }
         }
       }
 
-      if (!is_pc_bp_patch || any_success || !any_zero_return || !c->channel->connected() || (attempt >= max_attempts)) {
+      if (!c->channel->connected()) {
         break;
       }
-
-      c->log.warning_f("Brutal Peeps PC client patch did not find BattleParam table on attempt {}/{}; retrying",
-          attempt,
-          max_attempts);
     }
 
   } catch (const std::exception& e) {
